@@ -23,6 +23,7 @@ import com.example.trafficmarker.net.TrafficBus
 import com.example.trafficmarker.net.UdpGatewayServer
 import com.example.trafficmarker.overlay.MarkerBubbleService
 import com.example.trafficmarker.store.MarkerStore
+import com.example.trafficmarker.store.MarkerBackupManager
 import com.example.trafficmarker.store.SessionStore
 import com.ooimi.socks.ProxyModel
 import com.ooimi.socks.SocksProxy
@@ -31,6 +32,9 @@ import java.util.Date
 import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
+    private companion object {
+        const val REQUEST_LOAD_MARKER = 4107
+    }
     private data class AppItem(val label: String, val packageName: String) {
         override fun toString(): String = label + "\n" + packageName
     }
@@ -196,6 +200,21 @@ class MainActivity : AppCompatActivity() {
         markRow.addView(clear, LinearLayout.LayoutParams(0, -2, 1f))
         root.addView(markRow)
 
+        val backupRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+        val saveMarker = Button(this).apply {
+            text = "Simpan Penanda"
+            setOnClickListener { saveMarkersToDownload() }
+        }
+        val loadMarker = Button(this).apply {
+            text = "Load Penanda"
+            setOnClickListener { openMarkerSavePicker() }
+        }
+        backupRow.addView(saveMarker, LinearLayout.LayoutParams(0, -2, 1f))
+        backupRow.addView(loadMarker, LinearLayout.LayoutParams(0, -2, 1f))
+        root.addView(backupRow)
+
         markerInfo = title("Penanda: 0", 13f).apply {
             setPadding(0, 8, 0, 8)
             setTextColor(Color.rgb(56, 217, 169))
@@ -323,6 +342,63 @@ class MainActivity : AppCompatActivity() {
         LocalSocksServer.stop()
         UdpGatewayServer.stop()
         status.text = "Status: berhenti • session " + SessionStore.size() + " event"
+    }
+
+    private fun saveMarkersToDownload() {
+        try {
+            val result = MarkerBackupManager.saveAll(this, MarkerStore.all())
+            Toast.makeText(
+                this,
+                "Tersimpan: Download/" + MarkerBackupManager.SAVE_FOLDER + "/" + result.displayName +
+                    " • " + result.markerCount + " penanda",
+                Toast.LENGTH_LONG
+            ).show()
+        } catch (t: Throwable) {
+            Toast.makeText(
+                this,
+                "Gagal simpan: " + (t.message ?: t.javaClass.simpleName),
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    private fun openMarkerSavePicker() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "application/json"
+            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/json", "text/plain", "application/octet-stream"))
+        }
+        startActivityForResult(intent, REQUEST_LOAD_MARKER)
+    }
+
+    @Deprecated("Deprecated in Android SDK but retained for Android 11 compatibility")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQUEST_LOAD_MARKER || resultCode != RESULT_OK) return
+
+        val uri = data?.data ?: return
+        try {
+            runCatching {
+                contentResolver.takePersistableUriPermission(
+                    uri,
+                    data.flags and (Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                )
+            }
+
+            val result = MarkerBackupManager.loadFromUri(this, uri)
+            refreshMarkerInfo()
+            Toast.makeText(
+                this,
+                "Load selesai: " + result.importedCount + " baru dari " + result.totalInFile + " penanda",
+                Toast.LENGTH_LONG
+            ).show()
+        } catch (t: Throwable) {
+            Toast.makeText(
+                this,
+                "Gagal load: " + (t.message ?: t.javaClass.simpleName),
+                Toast.LENGTH_LONG
+            ).show()
+        }
     }
 
     private fun markSelected() {
