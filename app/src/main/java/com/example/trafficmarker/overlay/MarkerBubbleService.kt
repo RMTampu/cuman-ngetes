@@ -7,6 +7,8 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.IBinder
 import android.provider.Settings
@@ -19,6 +21,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import com.example.trafficmarker.R
+import com.example.trafficmarker.diagnostic.DiagnosticStore
 import com.example.trafficmarker.engine.QuickMarkerEngine
 import com.example.trafficmarker.store.MarkerStore
 import com.example.trafficmarker.store.SessionStore
@@ -141,6 +144,22 @@ class MarkerBubbleService : Service() {
         wm.addView(text, lp)
     }
 
+    private fun isVpnTransportActive(): Boolean {
+        return runCatching {
+            val cm = getSystemService(ConnectivityManager::class.java)
+            cm.allNetworks.any { network ->
+                cm.getNetworkCapabilities(network)?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
+            }
+        }.getOrDefault(false)
+    }
+
+    private fun diagnosticSummary(): String {
+        return DiagnosticStore.snapshot(isVpnTransportActive())
+            .lineSequence()
+            .take(9)
+            .joinToString("\n")
+    }
+
     private fun togglePanel(x: Int, y: Int) {
         panel?.let {
             runCatching { wm.removeView(it) }
@@ -158,6 +177,21 @@ class MarkerBubbleService : Service() {
             setTextColor(Color.WHITE)
             textSize = 14f
             setPadding(0, 0, 0, 12)
+        }
+        val diagnostic = TextView(this).apply {
+            text = "PENGECEKAN DATA\n" + diagnosticSummary()
+            setTextColor(Color.LTGRAY)
+            textSize = 10f
+            setPadding(0, 0, 0, 12)
+        }
+        val refreshDiagnostic = TextView(this).apply {
+            text = "REFRESH DIAGNOSTIK"
+            setTextColor(Color.CYAN)
+            textSize = 13f
+            setPadding(12, 10, 12, 10)
+            setOnClickListener {
+                diagnostic.text = "PENGECEKAN DATA\n" + diagnosticSummary()
+            }
         }
         val mark = TextView(this).apply {
             text = "TANDAI SEKARANG"
@@ -182,6 +216,8 @@ class MarkerBubbleService : Service() {
             setOnClickListener { togglePanel(x, y) }
         }
         root.addView(status)
+        root.addView(diagnostic)
+        root.addView(refreshDiagnostic)
         root.addView(mark)
         root.addView(close)
 
