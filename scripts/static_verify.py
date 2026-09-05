@@ -14,6 +14,7 @@ required = [
     "app/build.gradle.kts",
     "app/src/main/AndroidManifest.xml",
     "app/src/main/java/com/example/trafficmarker/ui/MainActivity.kt",
+    "app/src/main/java/com/example/trafficmarker/diagnostic/DiagnosticStore.kt",
     "app/src/main/java/com/example/trafficmarker/net/LocalSocksServer.kt",
     "app/src/main/java/com/example/trafficmarker/net/TrafficBus.kt",
     "app/src/main/java/com/example/trafficmarker/net/UdpGatewayServer.kt",
@@ -53,7 +54,7 @@ for name, pattern in checks.items():
         errors.append(f"build config check failed: {name}")
 
 main = (root / "app/src/main/java/com/example/trafficmarker/ui/MainActivity.kt").read_text(encoding="utf-8")
-for token in ["SocksProxy.setAppList(mutableListOf(item.packageName))", "SocksProxy.setProxyModel(ProxyModel.WHITE_LIST)", "SocksProxy.start(this)", "LocalSocksServer.start()", "UdpGatewayServer.start(currentIpv4Dns())", "SessionStore.start(clearPrevious = true)", "MarkerBubbleService.start(this)"]:
+for token in ["SocksProxy.setAppList(mutableListOf(item.packageName))", "SocksProxy.setProxyModel(ProxyModel.WHITE_LIST)", "SocksProxy.start(this)", "LocalSocksServer.start()", "UdpGatewayServer.start(dns)", "SessionStore.start(clearPrevious = true)", "MarkerBubbleService.start(this)", "DiagnosticStore.reset(item.packageName", "PENGECEKAN DATA", "copyDiagnostics"]:
     if token not in main:
         errors.append(f"capture route missing: {token}")
 
@@ -76,7 +77,7 @@ for token in ["const val PORT = 7300", "127.0.0.1", "UdpgwProtocol.readFrame", "
         errors.append(f"udpgw forwarding component missing: {token}")
 
 bubble = (root / "app/src/main/java/com/example/trafficmarker/overlay/MarkerBubbleService.kt").read_text(encoding="utf-8")
-for token in ["TYPE_APPLICATION_OVERLAY", "TANDAI SEKARANG", "QuickMarkerEngine.choose", "SessionStore.recent(2000)"]:
+for token in ["TYPE_APPLICATION_OVERLAY", "TANDAI SEKARANG", "QuickMarkerEngine.choose", "SessionStore.recent(2000)", "PENGECEKAN DATA", "DiagnosticStore.snapshot"]:
     if token not in bubble:
         errors.append(f"bubble component missing: {token}")
 
@@ -90,6 +91,21 @@ for token in ["MIN_WINDOW = 100", "MAX_WINDOW = 300", "coerceIn(MIN_WINDOW, MAX_
     if token not in provider:
         errors.append(f"lookahead provider contract missing: {token}")
 
+diagnostic = (root / "app/src/main/java/com/example/trafficmarker/diagnostic/DiagnosticStore.kt").read_text(encoding="utf-8")
+for token in ["socksClients", "tcpConnectOk", "udpOutPackets", "busEvents", "12 LOG TERAKHIR"]:
+    if token not in diagnostic:
+        errors.append(f"diagnostic component missing: {token}")
+
+if "DiagnosticStore.socksAccepted" not in socks or "DiagnosticStore.tcpConnect" not in socks:
+    errors.append("SOCKS/TCP diagnostic instrumentation missing")
+
+if "DiagnosticStore.udpGatewayAccepted" not in udpgw or "DiagnosticStore.udpPacket" not in udpgw:
+    errors.append("UDP diagnostic instrumentation missing")
+
+traffic_bus = (root / "app/src/main/java/com/example/trafficmarker/net/TrafficBus.kt").read_text(encoding="utf-8")
+if "DiagnosticStore.busEvent" not in traffic_bus:
+    errors.append("TrafficBus diagnostic instrumentation missing")
+
 if ".overlay.MarkerBubbleService" not in manifest:
     errors.append("bubble service missing from manifest")
 
@@ -100,4 +116,4 @@ if errors:
     sys.exit(1)
 
 print("STATIC_VERIFY: PASS")
-print("targetSdk=30; metadata-only; TCP+UDP/QUIC forwarding; live bubble; session recording; lookahead engine present")
+print("targetSdk=30; metadata-only; diagnostics instrument VPN/SOCKS/TCP/UDP/TrafficBus; live bubble; lookahead engine present")
