@@ -48,7 +48,7 @@ for name, pattern in checks.items():
         errors.append(f"build config check failed: {name}")
 
 main = (root / "app/src/main/java/com/example/trafficmarker/ui/MainActivity.kt").read_text(encoding="utf-8")
-for token in ["SocksProxy.setAppList(mutableListOf(item.packageName))", "SocksProxy.setProxyModel(ProxyModel.WHITE_LIST)", "SocksProxy.start(this)", "LocalSocksServer.start()", "UdpGatewayServer.start()"]:
+for token in ["SocksProxy.setAppList(mutableListOf(item.packageName))", "SocksProxy.setProxyModel(ProxyModel.WHITE_LIST)", "SocksProxy.start(this)", "LocalSocksServer.start()", "UdpGatewayServer.start(currentIpv4Dns())"]:
     if token not in main:
         errors.append(f"capture route missing: {token}")
 
@@ -66,7 +66,7 @@ if "SSL" in socks or "X509" in socks or "TrustManager" in socks:
     errors.append("unexpected TLS interception primitive detected")
 
 udpgw = (root / "app/src/main/java/com/example/trafficmarker/net/UdpGatewayServer.kt").read_text(encoding="utf-8")
-for token in ["const val PORT = 7300", "UdpgwProtocol.readFrame", "DatagramSocket", "Direction.UDP_OUT", "Direction.UDP_IN"]:
+for token in ["const val PORT = 7300", "127.0.0.1", "UdpgwProtocol.readFrame", "DatagramSocket", "Direction.UDP_OUT", "Direction.UDP_IN"]:
     if token not in udpgw:
         errors.append(f"udpgw forwarding component missing: {token}")
 
