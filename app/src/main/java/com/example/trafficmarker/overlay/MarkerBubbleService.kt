@@ -67,6 +67,7 @@ class MarkerBubbleService : Service() {
     private var arrivalText: TextView? = null
     private var diagnosticText: TextView? = null
     private var panelScroll: ScrollView? = null
+    private var quickOverlay: QuickStepOverlayController? = null
 
     private val panelTick = object : Runnable {
         override fun run() {
@@ -93,13 +94,31 @@ class MarkerBubbleService : Service() {
                 .build()
         )
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
-        if (Settings.canDrawOverlays(this)) showBubble() else stopSelf()
+        if (Settings.canDrawOverlays(this)) {
+            showBubble()
+            quickOverlay = QuickStepOverlayController(
+                context = this,
+                wm = wm,
+                onMarkerSelected = { label, anchorMs ->
+                    saveMomentAfterWindow(label, anchorMs)
+                },
+                onStepChanged = {
+                    stepText?.text = StepRecorder.summary()
+                    markerStatus?.text =
+                        "Session: " + SessionStore.size() +
+                            " • Marker: " + MarkerStore.all().size +
+                            " • " + StepRecorder.summary().lineSequence().first()
+                }
+            ).also { it.show() }
+        } else stopSelf()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
+        quickOverlay?.destroy()
+        quickOverlay = null
         bubble?.let { runCatching { wm.removeView(it) } }
         panel?.let { runCatching { wm.removeView(it) } }
         titlePrompt?.let { runCatching { wm.removeView(it) } }
@@ -269,7 +288,7 @@ class MarkerBubbleService : Service() {
         val mark = section("TANDAI MOMEN + JUDUL", Color.rgb(56, 217, 169)).apply {
             textSize = 14f
             setOnClickListener {
-                showMarkerTitlePrompt(System.currentTimeMillis())
+                quickOverlay?.beginMarkerSelection(System.currentTimeMillis())
             }
         }
 
@@ -305,7 +324,12 @@ class MarkerBubbleService : Service() {
                         Toast.LENGTH_SHORT
                     ).show()
                 } else {
-                    showStepResultPrompt()
+                    quickOverlay?.focusStepResults()
+                    Toast.makeText(
+                        this@MarkerBubbleService,
+                        "Pilih hasil pada window HASIL",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             }
         }
