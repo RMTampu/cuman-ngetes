@@ -1,5 +1,6 @@
 package com.example.trafficmarker.net
 
+import com.example.trafficmarker.diagnostic.DiagnosticStore
 import com.example.trafficmarker.model.TrafficEvent
 import com.example.trafficmarker.store.AlertManager
 import com.example.trafficmarker.store.MarkerStore
@@ -14,6 +15,7 @@ object TrafficBus {
     fun remove(listener: Listener) { listeners -= listener }
 
     fun emit(raw: TrafficEvent) {
+        DiagnosticStore.busEvent(raw.host, raw.port, raw.direction.name, raw.sizeBytes)
         SessionStore.add(raw)
         val marker = MarkerStore.findMatch(raw)
         val event = if (marker != null) raw.copy(matched = true) else raw
