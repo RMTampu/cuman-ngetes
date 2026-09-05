@@ -10,21 +10,27 @@ import android.graphics.PixelFormat
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.provider.Settings
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.view.inputmethod.InputMethodManager
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import com.example.trafficmarker.R
 import com.example.trafficmarker.diagnostic.DiagnosticStore
-import com.example.trafficmarker.engine.QuickMarkerEngine
+import com.example.trafficmarker.engine.ManualLookaheadStore
+import com.example.trafficmarker.engine.MomentFingerprintEngine
 import com.example.trafficmarker.store.MarkerStore
 import com.example.trafficmarker.store.SessionStore
+import kotlin.math.max
 
 class MarkerBubbleService : Service() {
     companion object {
@@ -43,8 +49,21 @@ class MarkerBubbleService : Service() {
     }
 
     private lateinit var wm: WindowManager
+    private val handler = Handler(Looper.getMainLooper())
     private var bubble: View? = null
     private var panel: View? = null
+    private var titlePrompt: View? = null
+    private var lookaheadText: TextView? = null
+    private var markerStatus: TextView? = null
+
+    private val panelTick = object : Runnable {
+        override fun run() {
+            if (panel != null) {
+                lookaheadText?.text = ManualLookaheadStore.snapshot()
+                handler.postDelayed(this, 900L)
+            }
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -54,7 +73,8 @@ class MarkerBubbleService : Service() {
             NotificationCompat.Builder(this, CHANNEL)
                 .setSmallIcon(R.drawable.ic_app)
                 .setContentTitle("Traffic Marker")
-                .setContentText("Bubble penanda aktif")
+                .setContentText("Capture metadata aktif")
+                .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setOngoing(true)
                 .build()
         )
@@ -65,10 +85,13 @@ class MarkerBubbleService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        handler.removeCallbacksAndMessages(null)
         bubble?.let { runCatching { wm.removeView(it) } }
         panel?.let { runCatching { wm.removeView(it) } }
+        titlePrompt?.let { runCatching { wm.removeView(it) } }
         bubble = null
         panel = null
+        titlePrompt = null
         super.onDestroy()
     }
 
@@ -76,17 +99,24 @@ class MarkerBubbleService : Service() {
         if (Build.VERSION.SDK_INT >= 26) {
             val nm = getSystemService(NotificationManager::class.java)
             nm.createNotificationChannel(
-                NotificationChannel(CHANNEL, "Traffic Marker Bubble", NotificationManager.IMPORTANCE_LOW)
+                NotificationChannel(
+                    CHANNEL,
+                    "Traffic Marker Capture",
+                    NotificationManager.IMPORTANCE_LOW
+                )
             )
         }
     }
+
+    private fun overlayType(): Int =
+        if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        else WindowManager.LayoutParams.TYPE_PHONE
 
     private fun layoutParams(width: Int, height: Int): WindowManager.LayoutParams =
         WindowManager.LayoutParams(
             width,
             height,
-            if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            else WindowManager.LayoutParams.TYPE_PHONE,
+            overlayType(),
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
@@ -153,79 +183,231 @@ class MarkerBubbleService : Service() {
         }.getOrDefault(false)
     }
 
-    private fun diagnosticSummary(): String {
-        return DiagnosticStore.snapshot(isVpnTransportActive())
+    private fun diagnosticSummary(): String =
+        DiagnosticStore.snapshot(isVpnTransportActive())
             .lineSequence()
             .take(9)
             .joinToString("\n")
-    }
 
     private fun togglePanel(x: Int, y: Int) {
         panel?.let {
+            handler.removeCallbacks(panelTick)
             runCatching { wm.removeView(it) }
             panel = null
+            lookaheadText = null
+            markerStatus = null
             return
         }
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(18, 16, 18, 16)
-            setBackgroundColor(Color.argb(245, 20, 24, 30))
+            setBackgroundColor(Color.argb(248, 20, 24, 30))
         }
+
         val status = TextView(this).apply {
-            text = "Session: " + SessionStore.size() + " event"
+            text = "Session: " + SessionStore.size() + " event • Marker: " + MarkerStore.all().size
             setTextColor(Color.WHITE)
-            textSize = 14f
-            setPadding(0, 0, 0, 12)
+            textSize = 13f
+            setPadding(0, 0, 0, 8)
         }
+        markerStatus = status
+
+        val mark = TextView(this).apply {
+            text = "TANDAI MOMEN + JUDUL"
+            setTextColor(Color.rgb(56, 217, 169))
+            textSize = 16f
+            setPadding(12, 12, 12, 12)
+            setOnClickListener {
+                val anchorMs = System.currentTimeMillis()
+                showTitlePrompt(anchorMs)
+            }
+        }
+
+        val load20 = TextView(this).apply {
+            text = "LOAD 20 MANUAL"
+            setTextColor(Color.rgb(100, 200, 255))
+            textSize = 16f
+            setPadding(12, 12, 12, 12)
+            setOnClickListener {
+                ManualLookaheadStore.start(MarkerStore.all())
+                lookaheadText?.text = ManualLookaheadStore.snapshot()
+                Toast.makeText(
+                    this@MarkerBubbleService,
+                    "LOAD 20 dimulai. Hasil hanya tampil di bubble.",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+
+        val lookahead = TextView(this).apply {
+            text = ManualLookaheadStore.snapshot()
+            setTextColor(Color.WHITE)
+            textSize = 12f
+            setPadding(8, 10, 8, 10)
+            setBackgroundColor(Color.rgb(27, 33, 40))
+        }
+        lookaheadText = lookahead
+
         val diagnostic = TextView(this).apply {
-            text = "PENGECEKAN DATA\n" + diagnosticSummary()
+            text = "DIAGNOSTIK\n" + diagnosticSummary()
             setTextColor(Color.LTGRAY)
-            textSize = 10f
-            setPadding(0, 0, 0, 12)
+            textSize = 9.5f
+            setPadding(0, 10, 0, 8)
         }
+
         val refreshDiagnostic = TextView(this).apply {
             text = "REFRESH DIAGNOSTIK"
             setTextColor(Color.CYAN)
-            textSize = 13f
-            setPadding(12, 10, 12, 10)
+            textSize = 12f
+            setPadding(12, 8, 12, 8)
             setOnClickListener {
-                diagnostic.text = "PENGECEKAN DATA\n" + diagnosticSummary()
+                diagnostic.text = "DIAGNOSTIK\n" + diagnosticSummary()
+                status.text = "Session: " + SessionStore.size() + " event • Marker: " + MarkerStore.all().size
             }
         }
-        val mark = TextView(this).apply {
-            text = "TANDAI SEKARANG"
-            setTextColor(Color.rgb(56, 217, 169))
-            textSize = 16f
-            setPadding(12, 14, 12, 14)
-            setOnClickListener {
-                val candidate = QuickMarkerEngine.choose(SessionStore.recent(2000))
-                if (candidate == null) {
-                    Toast.makeText(this@MarkerBubbleService, "Belum ada trafik dalam 2 detik terakhir", Toast.LENGTH_SHORT).show()
-                } else {
-                    val marker = MarkerStore.addFrom(candidate)
-                    status.text = "Ditandai " + marker.host + ":" + marker.port + " • " + marker.centerSize + " B"
-                    Toast.makeText(this@MarkerBubbleService, "Marker tersimpan", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
+
         val close = TextView(this).apply {
             text = "Tutup panel"
             setTextColor(Color.LTGRAY)
-            setPadding(12, 12, 12, 8)
+            setPadding(12, 10, 12, 6)
             setOnClickListener { togglePanel(x, y) }
         }
+
         root.addView(status)
-        root.addView(diagnostic)
-        root.addView(refreshDiagnostic)
         root.addView(mark)
+        root.addView(load20)
+        root.addView(lookahead)
+        root.addView(refreshDiagnostic)
+        root.addView(diagnostic)
         root.addView(close)
 
-        val lp = layoutParams(520, WindowManager.LayoutParams.WRAP_CONTENT).apply {
+        val lp = layoutParams(580, WindowManager.LayoutParams.WRAP_CONTENT).apply {
             this.x = x.coerceAtLeast(0)
             this.y = y.coerceAtLeast(0)
         }
         panel = root
         wm.addView(root, lp)
+        handler.removeCallbacks(panelTick)
+        handler.post(panelTick)
+    }
+
+    private fun showTitlePrompt(anchorMs: Long) {
+        if (titlePrompt != null) return
+
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(24, 22, 24, 22)
+            setBackgroundColor(Color.rgb(24, 29, 36))
+        }
+
+        val label = TextView(this).apply {
+            text = "Judul penanda"
+            textSize = 16f
+            setTextColor(Color.WHITE)
+        }
+
+        val input = EditText(this).apply {
+            hint = "Contoh: Scatter 5x"
+            setHintTextColor(Color.GRAY)
+            setTextColor(Color.WHITE)
+            singleLine = true
+        }
+
+        val info = TextView(this).apply {
+            text = "Judul yang sama akan menambah sampel ke marker yang sama."
+            textSize = 11f
+            setTextColor(Color.LTGRAY)
+        }
+
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+
+        val save = TextView(this).apply {
+            text = "SIMPAN"
+            setTextColor(Color.rgb(56, 217, 169))
+            textSize = 15f
+            gravity = Gravity.CENTER
+            setPadding(18, 14, 18, 14)
+            setOnClickListener {
+                val title = input.text?.toString()?.trim().orEmpty()
+                if (title.isBlank()) {
+                    input.error = "Judul wajib diisi"
+                    return@setOnClickListener
+                }
+                removeTitlePrompt(input)
+                saveMomentAfterWindow(title, anchorMs)
+            }
+        }
+
+        val cancel = TextView(this).apply {
+            text = "BATAL"
+            setTextColor(Color.LTGRAY)
+            textSize = 15f
+            gravity = Gravity.CENTER
+            setPadding(18, 14, 18, 14)
+            setOnClickListener { removeTitlePrompt(input) }
+        }
+
+        row.addView(save, LinearLayout.LayoutParams(0, WindowManager.LayoutParams.WRAP_CONTENT, 1f))
+        row.addView(cancel, LinearLayout.LayoutParams(0, WindowManager.LayoutParams.WRAP_CONTENT, 1f))
+        root.addView(label)
+        root.addView(input)
+        root.addView(info)
+        root.addView(row)
+
+        val lp = WindowManager.LayoutParams(
+            620,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            overlayType(),
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.CENTER
+            softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+        }
+
+        titlePrompt = root
+        wm.addView(root, lp)
+        input.requestFocus()
+        handler.postDelayed({
+            val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
+        }, 150L)
+    }
+
+    private fun removeTitlePrompt(input: EditText) {
+        val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
+        imm.hideSoftInputFromWindow(input.windowToken, 0)
+        titlePrompt?.let { runCatching { wm.removeView(it) } }
+        titlePrompt = null
+    }
+
+    private fun saveMomentAfterWindow(title: String, anchorMs: Long) {
+        markerStatus?.text = "Menyimpan momen \"" + title + "\"…"
+        val readyAt = anchorMs + MomentFingerprintEngine.DEFAULT_AFTER_MS
+        val delay = max(0L, readyAt - System.currentTimeMillis())
+
+        handler.postDelayed({
+            val from = anchorMs - MomentFingerprintEngine.DEFAULT_BEFORE_MS
+            val to = anchorMs + MomentFingerprintEngine.DEFAULT_AFTER_MS
+            val events = SessionStore.range(from, to)
+            val sample = MomentFingerprintEngine.createSample(anchorMs, events)
+
+            if (sample.bursts.isEmpty()) {
+                markerStatus?.text = "Gagal: tidak ada burst di window momen"
+                Toast.makeText(this, "Tidak ada trafik untuk disimpan", Toast.LENGTH_SHORT).show()
+                return@postDelayed
+            }
+
+            val marker = MarkerStore.addMomentSample(title, sample)
+            markerStatus?.text =
+                "Marker: " + marker.title + " • " + marker.samples.size + " sampel • " +
+                    sample.bursts.size + " burst"
+            Toast.makeText(
+                this,
+                "Momen \"" + marker.title + "\" tersimpan",
+                Toast.LENGTH_SHORT
+            ).show()
+        }, delay)
     }
 }
