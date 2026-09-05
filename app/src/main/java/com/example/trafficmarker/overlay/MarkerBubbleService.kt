@@ -5,6 +5,7 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.net.ConnectivityManager
@@ -21,6 +22,7 @@ import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
@@ -64,6 +66,7 @@ class MarkerBubbleService : Service() {
     private var stepText: TextView? = null
     private var arrivalText: TextView? = null
     private var diagnosticText: TextView? = null
+    private var panelScroll: ScrollView? = null
 
     private val panelTick = object : Runnable {
         override fun run() {
@@ -210,11 +213,35 @@ class MarkerBubbleService : Service() {
             setPadding(10, 8, 10, 8)
         }
 
+    private fun isLandscape(): Boolean =
+        resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+    private fun dp(value: Int): Int =
+        (value * resources.displayMetrics.density).toInt()
+
+    private fun collapsibleHeader(
+        title: String,
+        content: View,
+        initiallyVisible: Boolean = false,
+        color: Int = Color.LTGRAY
+    ): TextView {
+        content.visibility = if (initiallyVisible) View.VISIBLE else View.GONE
+        return section((if (initiallyVisible) "▼ " else "▶ ") + title, color).apply {
+            textSize = 11.5f
+            setOnClickListener {
+                val show = content.visibility != View.VISIBLE
+                content.visibility = if (show) View.VISIBLE else View.GONE
+                text = (if (show) "▼ " else "▶ ") + title
+            }
+        }
+    }
+
     private fun togglePanel(x: Int, y: Int) {
         panel?.let {
             handler.removeCallbacks(panelTick)
             runCatching { wm.removeView(it) }
             panel = null
+            panelScroll = null
             lookaheadText = null
             markerStatus = null
             recorderText = null
@@ -226,7 +253,7 @@ class MarkerBubbleService : Service() {
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(14, 12, 14, 12)
+            setPadding(dp(8), dp(7), dp(8), dp(7))
             setBackgroundColor(Color.argb(248, 20, 24, 30))
         }
 
@@ -234,17 +261,20 @@ class MarkerBubbleService : Service() {
             "Session: " + SessionStore.size() +
                 " • Marker: " + MarkerStore.all().size +
                 " • Recorder: " + if (TrafficRecorder.isEnabled()) "ON" else "OFF"
-        )
+        ).apply {
+            textSize = if (isLandscape()) 11.5f else 13f
+        }
         markerStatus = status
 
         val mark = section("TANDAI MOMEN + JUDUL", Color.rgb(56, 217, 169)).apply {
-            textSize = 15f
+            textSize = 14f
             setOnClickListener {
                 showMarkerTitlePrompt(System.currentTimeMillis())
             }
         }
 
         val stepState = section(StepRecorder.summary(), Color.rgb(255, 215, 120)).apply {
+            textSize = if (isLandscape()) 10.5f else 12f
             setBackgroundColor(Color.rgb(27, 33, 40))
         }
         stepText = stepState
@@ -252,6 +282,7 @@ class MarkerBubbleService : Service() {
         val stepRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         val startStep = section("MULAI STEP", Color.rgb(100, 200, 255)).apply {
             gravity = Gravity.CENTER
+            textSize = 12.5f
             setOnClickListener {
                 if (!TrafficRecorder.isEnabled()) TrafficRecorder.start(clearPrevious = false)
                 if (StepRecorder.isActive()) {
@@ -265,9 +296,14 @@ class MarkerBubbleService : Service() {
         }
         val finishStep = section("HASIL + LABEL", Color.rgb(255, 180, 100)).apply {
             gravity = Gravity.CENTER
+            textSize = 12.5f
             setOnClickListener {
                 if (!StepRecorder.isActive()) {
-                    Toast.makeText(this@MarkerBubbleService, "Tekan MULAI STEP terlebih dahulu", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        this@MarkerBubbleService,
+                        "Tekan MULAI STEP terlebih dahulu",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 } else {
                     showStepResultPrompt()
                 }
@@ -276,13 +312,29 @@ class MarkerBubbleService : Service() {
         stepRow.addView(startStep, LinearLayout.LayoutParams(0, WindowManager.LayoutParams.WRAP_CONTENT, 1f))
         stepRow.addView(finishStep, LinearLayout.LayoutParams(0, WindowManager.LayoutParams.WRAP_CONTENT, 1f))
 
-        val rec = section("RECORDER LIVE\n" + TrafficRecorder.recentText(6), Color.LTGRAY).apply {
-            textSize = 9.5f
+        // Validation is intentionally placed before long recorder/diagnostic sections.
+        val validate = section("VALIDASI DATA DATANG LEBIH AWAL", Color.rgb(255, 210, 90)).apply {
+            textSize = 13f
+            setOnClickListener { runArrivalValidation() }
+        }
+
+        val arrival = section(
+            "ARRIVAL PROOF\nBelum divalidasi.",
+            Color.WHITE
+        ).apply {
+            textSize = if (isLandscape()) 9.5f else 10.5f
+            setBackgroundColor(Color.rgb(27, 33, 40))
+        }
+        arrivalText = arrival
+
+        val rec = section("RECORDER LIVE\n" + TrafficRecorder.recentText(if (isLandscape()) 4 else 6), Color.LTGRAY).apply {
+            textSize = if (isLandscape()) 8.5f else 9.5f
             setBackgroundColor(Color.rgb(24, 29, 36))
         }
         recorderText = rec
 
         val saveRecorder = section("SIMPAN RECORDER", Color.rgb(56, 217, 169)).apply {
+            textSize = 11.5f
             setOnClickListener {
                 try {
                     val path = TrafficRecorder.saveJsonl(this@MarkerBubbleService)
@@ -296,23 +348,20 @@ class MarkerBubbleService : Service() {
                 }
             }
         }
-
-        val validate = section("VALIDASI DATA DATANG LEBIH AWAL", Color.rgb(255, 210, 90)).apply {
-            textSize = 14f
-            setOnClickListener { runArrivalValidation() }
+        val recorderBox = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(rec)
+            addView(saveRecorder)
         }
+        val recorderHeader = collapsibleHeader(
+            "RECORDER",
+            recorderBox,
+            initiallyVisible = !isLandscape(),
+            color = Color.rgb(56, 217, 169)
+        )
 
-        val arrival = section(
-            "ARRIVAL PROOF\nBelum divalidasi. Rekam step + label hasil aktual terlebih dahulu.",
-            Color.WHITE
-        ).apply {
-            textSize = 10.5f
-            setBackgroundColor(Color.rgb(27, 33, 40))
-        }
-        arrivalText = arrival
-
-        val load20 = section("LOAD 20 MANUAL (EKSPERIMEN)", Color.rgb(100, 200, 255)).apply {
-            textSize = 14f
+        val load20 = section("MULAI LOAD 20", Color.rgb(100, 200, 255)).apply {
+            textSize = 12f
             setOnClickListener {
                 if (MarkerStore.all().none { it.samples.isNotEmpty() }) {
                     Toast.makeText(this@MarkerBubbleService, "Belum ada marker momen", Toast.LENGTH_SHORT).show()
@@ -324,24 +373,46 @@ class MarkerBubbleService : Service() {
         }
 
         val lookahead = section(ManualLookaheadStore.snapshot(), Color.LTGRAY).apply {
-            textSize = 10f
+            textSize = 9.5f
             setBackgroundColor(Color.rgb(27, 33, 40))
         }
         lookaheadText = lookahead
+        val lookaheadBox = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(load20)
+            addView(lookahead)
+        }
+        val lookaheadHeader = collapsibleHeader(
+            "LOAD 20 (EKSPERIMEN)",
+            lookaheadBox,
+            initiallyVisible = false,
+            color = Color.rgb(100, 200, 255)
+        )
 
         val refreshDiagnostic = section("REFRESH DIAGNOSTIK", Color.CYAN).apply {
-            textSize = 11f
+            textSize = 10.5f
             setOnClickListener {
                 diagnosticText?.text = "DIAGNOSTIK\n" + diagnosticSummary()
             }
         }
-
         val diagnostic = section("DIAGNOSTIK\n" + diagnosticSummary(), Color.GRAY).apply {
-            textSize = 8.5f
+            textSize = 8.2f
         }
         diagnosticText = diagnostic
+        val diagnosticBox = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(refreshDiagnostic)
+            addView(diagnostic)
+        }
+        val diagnosticHeader = collapsibleHeader(
+            "DIAGNOSTIK",
+            diagnosticBox,
+            initiallyVisible = false,
+            color = Color.CYAN
+        )
 
         val close = section("Tutup panel", Color.LTGRAY).apply {
+            textSize = 11f
             setOnClickListener { togglePanel(x, y) }
         }
 
@@ -349,22 +420,55 @@ class MarkerBubbleService : Service() {
         root.addView(mark)
         root.addView(stepState)
         root.addView(stepRow)
-        root.addView(rec)
-        root.addView(saveRecorder)
         root.addView(validate)
         root.addView(arrival)
-        root.addView(load20)
-        root.addView(lookahead)
-        root.addView(refreshDiagnostic)
-        root.addView(diagnostic)
+        root.addView(recorderHeader)
+        root.addView(recorderBox)
+        root.addView(lookaheadHeader)
+        root.addView(lookaheadBox)
+        root.addView(diagnosticHeader)
+        root.addView(diagnosticBox)
         root.addView(close)
 
-        val lp = layoutParams(620, WindowManager.LayoutParams.WRAP_CONTENT).apply {
-            this.x = x.coerceAtLeast(0)
-            this.y = y.coerceAtLeast(0)
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            setBackgroundColor(Color.argb(248, 20, 24, 30))
+            addView(
+                root,
+                ScrollView.LayoutParams(
+                    ScrollView.LayoutParams.MATCH_PARENT,
+                    ScrollView.LayoutParams.WRAP_CONTENT
+                )
+            )
         }
-        panel = root
-        wm.addView(root, lp)
+        panelScroll = scroll
+
+        val screenW = resources.displayMetrics.widthPixels
+        val screenH = resources.displayMetrics.heightPixels
+        val width = if (isLandscape()) {
+            minOf(dp(360), (screenW * 0.42f).toInt())
+        } else {
+            minOf(dp(360), (screenW * 0.92f).toInt())
+        }
+        val height = if (isLandscape()) {
+            (screenH * 0.86f).toInt()
+        } else {
+            (screenH * 0.76f).toInt()
+        }
+
+        val safeX = x.coerceIn(0, maxOf(0, screenW - width))
+        val safeY = if (isLandscape()) {
+            dp(12)
+        } else {
+            y.coerceIn(dp(12), maxOf(dp(12), screenH - height - dp(12)))
+        }
+
+        val lp = layoutParams(width, height).apply {
+            this.x = safeX
+            this.y = safeY
+        }
+        panel = scroll
+        wm.addView(scroll, lp)
         handler.removeCallbacks(panelTick)
         handler.post(panelTick)
     }
@@ -507,18 +611,33 @@ class MarkerBubbleService : Service() {
         val markers = MarkerStore.all().filter { it.samples.isNotEmpty() }
         val steps = StepRecorder.all()
 
-        if (markers.isEmpty()) {
-            arrivalText?.text = "ARRIVAL PROOF: NO DATA\nBelum ada marker momen."
-            return
-        }
-        if (steps.isEmpty()) {
-            arrivalText?.text = "ARRIVAL PROOF: NO DATA\nBelum ada step + ground-truth."
-            return
+        val resultText = when {
+            markers.isEmpty() ->
+                "ARRIVAL PROOF: NO DATA\nBelum ada marker momen."
+            steps.isEmpty() ->
+                "ARRIVAL PROOF: NO DATA\nBelum ada step + ground-truth."
+            else ->
+                markers.joinToString("\n\n") { marker ->
+                    ArrivalValidator.format(ArrivalValidator.validate(marker, steps))
+                }
         }
 
-        arrivalText?.text = markers.joinToString("\n\n") { marker ->
-            ArrivalValidator.format(ArrivalValidator.validate(marker, steps))
-        }
+        arrivalText?.text = resultText
+        markerStatus?.text =
+            "VALIDASI SELESAI • " + StepRecorder.count() + " step • " +
+                markers.size + " marker"
+
+        val firstLine = resultText.lineSequence().firstOrNull() ?: "Validasi selesai"
+        Toast.makeText(
+            this,
+            firstLine + " • lihat hasil di panel",
+            Toast.LENGTH_LONG
+        ).show()
+
+        handler.postDelayed({
+            val target = arrivalText ?: return@postDelayed
+            panelScroll?.smoothScrollTo(0, target.top)
+        }, 120L)
     }
 
     private fun saveMomentAfterWindow(title: String, anchorMs: Long) {
