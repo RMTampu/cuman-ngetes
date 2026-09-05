@@ -11,6 +11,7 @@ import com.example.trafficmarker.R
 import com.example.trafficmarker.model.TrafficEvent
 import com.example.trafficmarker.net.LocalSocksServer
 import com.example.trafficmarker.net.TrafficBus
+import com.example.trafficmarker.net.UdpGatewayServer
 import com.example.trafficmarker.store.MarkerStore
 import com.ooimi.socks.ProxyModel
 import com.ooimi.socks.SocksProxy
@@ -117,6 +118,7 @@ class MainActivity : AppCompatActivity() {
     private fun startCapture() {
         val item = appSpinner.selectedItem as? AppItem ?: return
         try {
+            UdpGatewayServer.start()
             LocalSocksServer.start()
             SocksProxy.configConnect("127.0.0.1", LocalSocksServer.PORT)
             SocksProxy.setProxyModel(ProxyModel.WHITE_LIST)
@@ -131,6 +133,7 @@ class MainActivity : AppCompatActivity() {
             status.text = "Status: meminta izin VPN… • ${item.label}"
         } catch (t: Throwable) {
             LocalSocksServer.stop()
+            UdpGatewayServer.stop()
             status.text = "Gagal mulai: ${t.message ?: t.javaClass.simpleName}"
         }
     }
@@ -138,6 +141,7 @@ class MainActivity : AppCompatActivity() {
     private fun stopCapture() {
         runCatching { SocksProxy.stop() }
         LocalSocksServer.stop()
+        UdpGatewayServer.stop()
         status.text = "Status: berhenti"
     }
 
