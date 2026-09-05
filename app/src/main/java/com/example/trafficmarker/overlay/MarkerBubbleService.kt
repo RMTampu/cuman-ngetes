@@ -435,9 +435,9 @@ class MarkerBubbleService : Service() {
             setBackgroundColor(Color.argb(248, 20, 24, 30))
             addView(
                 root,
-                ScrollView.LayoutParams(
-                    ScrollView.LayoutParams.MATCH_PARENT,
-                    ScrollView.LayoutParams.WRAP_CONTENT
+                android.widget.FrameLayout.LayoutParams(
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.WRAP_CONTENT
                 )
             )
         }
