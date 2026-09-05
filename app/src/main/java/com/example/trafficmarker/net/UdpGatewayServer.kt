@@ -29,13 +29,15 @@ object UdpGatewayServer {
     private val running = AtomicBoolean(false)
     private var server: ServerSocket? = null
     private var pool: ExecutorService? = null
+    @Volatile private var dnsAddress: InetAddress = InetAddress.getByName("1.1.1.1")
 
-    fun start() {
+    fun start(preferredDns: InetAddress? = null) {
+        preferredDns?.let { if (it.address.size == 4) dnsAddress = it }
         if (!running.compareAndSet(false, true)) return
         pool = Executors.newCachedThreadPool()
         server = ServerSocket().apply {
             reuseAddress = true
-            bind(InetSocketAddress(InetAddress.getLoopbackAddress(), PORT))
+            bind(InetSocketAddress(InetAddress.getByName("127.0.0.1"), PORT))
         }
         pool!!.execute {
             while (running.get()) {
@@ -82,7 +84,7 @@ object UdpGatewayServer {
                     val originalAddress = frame.address ?: continue
                     val originalPort = frame.port
                     val dns = (frame.flags and UdpgwProtocol.FLAG_DNS) != 0
-                    val actualAddress = if (dns) InetAddress.getByName("1.1.1.1") else originalAddress
+                    val actualAddress = if (dns) dnsAddress else originalAddress
                     val actualPort = if (dns) 53 else originalPort
                     val mustRebind = (frame.flags and UdpgwProtocol.FLAG_REBIND) != 0
 
