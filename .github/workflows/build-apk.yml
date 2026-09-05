@@ -28,32 +28,36 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: Inspect socks dependency API
-        run: |
-          gradle :app:dependencies --configuration debugCompileClasspath >/tmp/deps.txt
-          cat /tmp/deps.txt
-          AAR="$(find "$HOME/.gradle/caches/modules-2/files-2.1/com.ooimi.library/socks/1.1.1" -type f -name '*.aar' | head -n 1)"
-          echo "SOCKS_AAR=$AAR"
-          test -n "$AAR"
-          rm -rf /tmp/socks-aar
-          mkdir -p /tmp/socks-aar
-          unzip -q "$AAR" -d /tmp/socks-aar
-          echo "=== AAR files ==="
-          find /tmp/socks-aar -maxdepth 3 -type f | sort
-          echo "=== classes ==="
-          jar tf /tmp/socks-aar/classes.jar | sort | grep -E '(^|/)(Socket|Socks|Proxy|Vpn|vpn|socket|socks|proxy)' || true
-          echo "=== SocksProxy API ==="
-          javap -classpath /tmp/socks-aar/classes.jar -p com.ooimi.socks.SocksProxy || true
-          echo "=== ProxyModel API ==="
-          javap -classpath /tmp/socks-aar/classes.jar -p com.ooimi.socks.ProxyModel || true
-          echo "=== SocksVpnService API ==="
-          javap -classpath /tmp/socks-aar/classes.jar -p com.ooimi.socks.SocksVpnService || true
-
       - name: Unit tests
         run: gradle :app:testDebugUnitTest --stacktrace
 
       - name: Build debug APK
         run: gradle :app:assembleDebug --stacktrace
+
+      - name: Verify APK target and VPN components
+        run: |
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          test -f "$APK"
+
+          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+          "$AAPT" dump badging "$APK" | tee apk-badging.txt
+          grep -q "package: name='com.example.trafficmarker'" apk-badging.txt
+          grep -q "targetSdkVersion:'30'" apk-badging.txt
+
+          "$AAPT" dump xmltree "$APK" AndroidManifest.xml > apk-manifest.txt
+          grep -q "com.ooimi.socks.SocksVpnService" apk-manifest.txt
+          grep -q "android.permission.BIND_VPN_SERVICE" apk-manifest.txt
+
+          mapfile -t ABIS < <(
+            unzip -l "$APK" |
+              awk '/lib\/[^/]+\/.*\.so$/ {print $4}' |
+              sed -E 's#lib/([^/]+)/.*#\1#' |
+              sort -u
+          )
+          printf 'ABIs: %s\n' "${ABIS[*]}"
+          test "${#ABIS[@]}" -eq 1
+          test "${ABIS[0]}" = "arm64-v8a"
+          unzip -l "$APK" | grep -q 'lib/arm64-v8a/libgojni.so'
 
       - name: Record artifact digest
         run: |
@@ -66,4 +70,5 @@ jobs:
           path: |
             app/build/outputs/apk/debug/app-debug.apk
             TrafficMarker-debug.sha256
+            apk-badging.txt
           if-no-files-found: error
