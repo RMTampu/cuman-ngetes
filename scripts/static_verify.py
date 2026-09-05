@@ -18,6 +18,10 @@ required = [
     "app/src/main/java/com/example/trafficmarker/net/TrafficBus.kt",
     "app/src/main/java/com/example/trafficmarker/net/UdpGatewayServer.kt",
     "app/src/main/java/com/example/trafficmarker/net/UdpgwProtocol.kt",
+    "app/src/main/java/com/example/trafficmarker/store/SessionStore.kt",
+    "app/src/main/java/com/example/trafficmarker/engine/QuickMarkerEngine.kt",
+    "app/src/main/java/com/example/trafficmarker/engine/LookaheadEngine.kt",
+    "app/src/main/java/com/example/trafficmarker/overlay/MarkerBubbleService.kt",
     "app/src/main/java/com/example/trafficmarker/store/MarkerStore.kt",
     "app/src/main/java/com/example/trafficmarker/store/AlertManager.kt",
 ]
@@ -32,7 +36,7 @@ for xml in root.glob("app/src/main/**/*.xml"):
         errors.append(f"invalid XML {xml.relative_to(root)}: {e}")
 
 manifest = (root / "app/src/main/AndroidManifest.xml").read_text(encoding="utf-8")
-for permission in ["android.permission.INTERNET", "android.permission.FOREGROUND_SERVICE"]:
+for permission in ["android.permission.INTERNET", "android.permission.FOREGROUND_SERVICE", "android.permission.SYSTEM_ALERT_WINDOW"]:
     if permission not in manifest:
         errors.append(f"manifest permission missing: {permission}")
 
@@ -48,7 +52,7 @@ for name, pattern in checks.items():
         errors.append(f"build config check failed: {name}")
 
 main = (root / "app/src/main/java/com/example/trafficmarker/ui/MainActivity.kt").read_text(encoding="utf-8")
-for token in ["SocksProxy.setAppList(mutableListOf(item.packageName))", "SocksProxy.setProxyModel(ProxyModel.WHITE_LIST)", "SocksProxy.start(this)", "LocalSocksServer.start()", "UdpGatewayServer.start(currentIpv4Dns())"]:
+for token in ["SocksProxy.setAppList(mutableListOf(item.packageName))", "SocksProxy.setProxyModel(ProxyModel.WHITE_LIST)", "SocksProxy.start(this)", "LocalSocksServer.start()", "UdpGatewayServer.start(currentIpv4Dns())", "SessionStore.start(clearPrevious = true)", "MarkerBubbleService.start(this)"]:
     if token not in main:
         errors.append(f"capture route missing: {token}")
 
@@ -70,6 +74,19 @@ for token in ["const val PORT = 7300", "127.0.0.1", "UdpgwProtocol.readFrame", "
     if token not in udpgw:
         errors.append(f"udpgw forwarding component missing: {token}")
 
+bubble = (root / "app/src/main/java/com/example/trafficmarker/overlay/MarkerBubbleService.kt").read_text(encoding="utf-8")
+for token in ["TYPE_APPLICATION_OVERLAY", "TANDAI SEKARANG", "QuickMarkerEngine.choose", "SessionStore.recent(2000)"]:
+    if token not in bubble:
+        errors.append(f"bubble component missing: {token}")
+
+lookahead = (root / "app/src/main/java/com/example/trafficmarker/engine/LookaheadEngine.kt").read_text(encoding="utf-8")
+for token in ["EXACT", "ESTIMATED", "UNAVAILABLE", "relativeStep = index + 1"]:
+    if token not in lookahead:
+        errors.append(f"lookahead engine missing: {token}")
+
+if ".overlay.MarkerBubbleService" not in manifest:
+    errors.append("bubble service missing from manifest")
+
 if errors:
     print("STATIC_VERIFY: FAIL")
     for e in errors:
@@ -77,4 +94,4 @@ if errors:
     sys.exit(1)
 
 print("STATIC_VERIFY: PASS")
-print("targetSdk=30; metadata-only; TCP+UDP/QUIC forwarding paths present; marker persistence and alarm path present")
+print("targetSdk=30; metadata-only; TCP+UDP/QUIC forwarding; live bubble; session recording; lookahead engine present")
