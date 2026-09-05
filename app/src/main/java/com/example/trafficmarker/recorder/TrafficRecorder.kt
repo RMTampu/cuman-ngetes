@@ -50,7 +50,7 @@ object TrafficRecorder {
     fun recentText(limit: Int = 12): String {
         if (events.isEmpty()) return "Recorder: belum ada data."
         val fmt = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
-        return events.takeLast(limit).joinToString("\n") { r ->
+        return events.toList().takeLast(limit).joinToString("\n") { r ->
             val e = r.event
             val step = r.stepIndex?.let { " S$it" } ?: ""
             fmt.format(Date(e.timeMs)) + step + " " + e.direction.name +
