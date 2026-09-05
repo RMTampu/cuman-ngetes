@@ -1,5 +1,6 @@
 package com.example.trafficmarker.net
 
+import com.example.trafficmarker.diagnostic.DiagnosticStore
 import com.example.trafficmarker.model.Direction
 import com.example.trafficmarker.model.TrafficEvent
 import java.io.BufferedInputStream
@@ -39,10 +40,12 @@ object UdpGatewayServer {
             reuseAddress = true
             bind(InetSocketAddress(InetAddress.getByName("127.0.0.1"), PORT))
         }
+        DiagnosticStore.setUdpGatewayListening(true, dnsAddress.hostAddress)
         pool!!.execute {
             while (running.get()) {
                 try {
                     val socket = server?.accept() ?: break
+                    DiagnosticStore.udpGatewayAccepted(socket.remoteSocketAddress?.toString())
                     pool?.execute { handleClient(socket) }
                 } catch (_: SocketException) {
                     break
@@ -58,6 +61,7 @@ object UdpGatewayServer {
         server = null
         pool?.shutdownNow()
         pool = null
+        DiagnosticStore.setUdpGatewayListening(false)
     }
 
     private data class UdpConnection(
@@ -109,6 +113,12 @@ object UdpGatewayServer {
 
                     if (frame.payload.isNotEmpty()) {
                         con.socket.send(DatagramPacket(frame.payload, frame.payload.size))
+                        DiagnosticStore.udpPacket(
+                            true,
+                            originalAddress.hostAddress ?: originalAddress.toString(),
+                            originalPort,
+                            frame.payload.size
+                        )
                         TrafficBus.emit(
                             TrafficEvent(
                                 host = originalAddress.hostAddress ?: originalAddress.toString(),
@@ -119,7 +129,8 @@ object UdpGatewayServer {
                         )
                     }
                 }
-            } catch (_: Throwable) {
+            } catch (t: Throwable) {
+                DiagnosticStore.error("UDPGW", t.message ?: t.javaClass.simpleName)
             } finally {
                 connections.values.forEach(::closeConnection)
                 connections.clear()
@@ -154,6 +165,12 @@ object UdpGatewayServer {
                         output.write(framed)
                         output.flush()
                     }
+                    DiagnosticStore.udpPacket(
+                        false,
+                        originalAddress.hostAddress ?: originalAddress.toString(),
+                        originalPort,
+                        bytes.size
+                    )
                     TrafficBus.emit(
                         TrafficEvent(
                             host = originalAddress.hostAddress ?: originalAddress.toString(),
