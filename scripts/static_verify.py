@@ -45,7 +45,7 @@ for name, pattern in checks.items():
         errors.append(f"build config check failed: {name}")
 
 main = (root / "app/src/main/java/com/example/trafficmarker/ui/MainActivity.kt").read_text(encoding="utf-8")
-for token in ["appList = arrayListOf(item.packageName)", "passModel = 1", "SocketProxy.startProxy", "LocalSocksServer.start()"]:
+for token in ["SocksProxy.setAppList(listOf(item.packageName))", "SocksProxy.setProxyModel(ProxyModel.WHITE_LIST)", "SocksProxy.start(this)", "LocalSocksServer.start()"]:
     if token not in main:
         errors.append(f"capture route missing: {token}")
 
