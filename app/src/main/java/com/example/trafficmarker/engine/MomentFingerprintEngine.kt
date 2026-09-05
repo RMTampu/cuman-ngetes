@@ -16,7 +16,7 @@ object MomentFingerprintEngine {
 
     fun endpointGroup(host: String): String {
         val parts = host.split(".")
-        return if (parts.size == 4 && parts.all { it.toIntOrNull() in 0..255 }) {
+        return if (parts.size == 4 && parts.all { p -> p.toIntOrNull()?.let { it in 0..255 } == true }) {
             parts.take(3).joinToString(".") + ".*"
         } else {
             host.lowercase()
