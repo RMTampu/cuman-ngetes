@@ -51,6 +51,8 @@ jobs:
           "$AAPT" dump xmltree "$APK" AndroidManifest.xml > apk-manifest.txt
           grep -q "com.ooimi.socks.SocksVpnService" apk-manifest.txt
           grep -q "android.permission.BIND_VPN_SERVICE" apk-manifest.txt
+          grep -q "com.example.trafficmarker.overlay.MarkerBubbleService" apk-manifest.txt
+          grep -q "android.permission.SYSTEM_ALERT_WINDOW" apk-manifest.txt
 
           mapfile -t ABIS < <(
             unzip -l "$APK" |
