@@ -3,7 +3,9 @@ package com.example.trafficmarker.ui
 import android.content.Intent
 import android.graphics.Color
 import android.net.ConnectivityManager
+import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import android.view.Gravity
 import android.view.View
 import android.widget.*
@@ -13,7 +15,9 @@ import com.example.trafficmarker.model.TrafficEvent
 import com.example.trafficmarker.net.LocalSocksServer
 import com.example.trafficmarker.net.TrafficBus
 import com.example.trafficmarker.net.UdpGatewayServer
+import com.example.trafficmarker.overlay.MarkerBubbleService
 import com.example.trafficmarker.store.MarkerStore
+import com.example.trafficmarker.store.SessionStore
 import com.ooimi.socks.ProxyModel
 import com.ooimi.socks.SocksProxy
 import java.text.SimpleDateFormat
@@ -22,7 +26,7 @@ import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
     private data class AppItem(val label: String, val packageName: String) {
-        override fun toString(): String = "$label\n$packageName"
+        override fun toString(): String = label + "\n" + packageName
     }
 
     private val events = ArrayList<TrafficEvent>()
@@ -32,6 +36,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var status: TextView
     private lateinit var markerInfo: TextView
     private var selectedIndex = -1
+    private var captureRequested = false
 
     private val listener = TrafficBus.Listener { event ->
         runOnUiThread {
@@ -49,6 +54,13 @@ class MainActivity : AppCompatActivity() {
         TrafficBus.add(listener)
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (captureRequested && Settings.canDrawOverlays(this)) {
+            MarkerBubbleService.start(this)
+        }
+    }
+
     override fun onDestroy() {
         TrafficBus.remove(listener)
         super.onDestroy()
@@ -61,34 +73,79 @@ class MainActivity : AppCompatActivity() {
             setBackgroundColor(Color.rgb(16, 19, 24))
         }
         fun title(text: String, size: Float) = TextView(this).apply {
-            this.text = text; textSize = size; setTextColor(Color.WHITE)
+            this.text = text
+            textSize = size
+            setTextColor(Color.WHITE)
         }
+
         root.addView(title("Traffic Marker", 24f))
-        root.addView(title("Pilih aplikasi → tangkap metadata → tandai satu pola → alarm saat muncul lagi.", 13f).apply {
-            setTextColor(Color.rgb(155, 167, 180)); setPadding(0, 4, 0, 16)
+        root.addView(title("Pilih aplikasi → tangkap metadata → tandai pola tanpa meninggalkan aplikasi target.", 13f).apply {
+            setTextColor(Color.rgb(155, 167, 180))
+            setPadding(0, 4, 0, 16)
         })
 
         appSpinner = Spinner(this)
         root.addView(appSpinner, LinearLayout.LayoutParams(-1, -2))
 
-        val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        val start = Button(this).apply { text = "Mulai Tangkap"; setOnClickListener { startCapture() } }
-        val stop = Button(this).apply { text = "Stop"; setOnClickListener { stopCapture() } }
+        val buttons = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val start = Button(this).apply {
+            text = "Mulai Tangkap"
+            setOnClickListener { startCapture() }
+        }
+        val stop = Button(this).apply {
+            text = "Stop"
+            setOnClickListener { stopCapture() }
+        }
         buttons.addView(start, LinearLayout.LayoutParams(0, -2, 1f))
         buttons.addView(stop, LinearLayout.LayoutParams(0, -2, 1f))
         root.addView(buttons)
 
-        status = title("Status: berhenti", 14f).apply { setPadding(0, 12, 0, 12) }
+        val liveRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val bubble = Button(this).apply {
+            text = "Aktifkan Bubble"
+            setOnClickListener { ensureBubblePermission() }
+        }
+        val openTarget = Button(this).apply {
+            text = "Buka Target"
+            setOnClickListener { openSelectedTarget() }
+        }
+        liveRow.addView(bubble, LinearLayout.LayoutParams(0, -2, 1f))
+        liveRow.addView(openTarget, LinearLayout.LayoutParams(0, -2, 1f))
+        root.addView(liveRow)
+
+        status = title("Status: berhenti", 14f).apply {
+            setPadding(0, 12, 0, 12)
+        }
         root.addView(status)
 
-        val markRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        val mark = Button(this).apply { text = "Tandai Terpilih"; setOnClickListener { markSelected() } }
-        val clear = Button(this).apply { text = "Hapus Penanda"; setOnClickListener { MarkerStore.clear(); refreshMarkerInfo() } }
+        val markRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+        val mark = Button(this).apply {
+            text = "Tandai Terpilih"
+            setOnClickListener { markSelected() }
+        }
+        val clear = Button(this).apply {
+            text = "Hapus Penanda"
+            setOnClickListener {
+                MarkerStore.clear()
+                refreshMarkerInfo()
+            }
+        }
         markRow.addView(mark, LinearLayout.LayoutParams(0, -2, 1f))
         markRow.addView(clear, LinearLayout.LayoutParams(0, -2, 1f))
         root.addView(markRow)
 
-        markerInfo = title("Penanda: 0", 13f).apply { setPadding(0, 8, 0, 8); setTextColor(Color.rgb(56, 217, 169)) }
+        markerInfo = title("Penanda: 0", 13f).apply {
+            setPadding(0, 8, 0, 8)
+            setTextColor(Color.rgb(56, 217, 169))
+        }
         root.addView(markerInfo)
 
         eventAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_activated_1, ArrayList())
@@ -96,12 +153,17 @@ class MainActivity : AppCompatActivity() {
             choiceMode = ListView.CHOICE_MODE_SINGLE
             adapter = eventAdapter
             setOnItemClickListener { _, _, position, _ -> selectedIndex = position }
-            setOnItemLongClickListener { _, _, position, _ -> selectedIndex = position; markSelected(); true }
+            setOnItemLongClickListener { _, _, position, _ ->
+                selectedIndex = position
+                markSelected()
+                true
+            }
         }
         root.addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
 
-        root.addView(title("HTTPS tidak didekripsi. Event adalah metadata koneksi/chunk: host/IP, port, arah, ukuran.", 11f).apply {
-            setTextColor(Color.rgb(155, 167, 180)); setPadding(0, 8, 0, 0)
+        root.addView(title("HTTPS tidak didekripsi. Session hanya menyimpan metadata koneksi/chunk.", 11f).apply {
+            setTextColor(Color.rgb(155, 167, 180))
+            setPadding(0, 8, 0, 0)
         })
         return root
     }
@@ -114,6 +176,30 @@ class MainActivity : AppCompatActivity() {
             .distinctBy { it.packageName }
             .sortedBy { it.label.lowercase(Locale.getDefault()) }
         appSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, apps)
+    }
+
+    private fun ensureBubblePermission() {
+        if (Settings.canDrawOverlays(this)) {
+            MarkerBubbleService.start(this)
+            Toast.makeText(this, "Bubble aktif", Toast.LENGTH_SHORT).show()
+            return
+        }
+        startActivity(
+            Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:" + packageName)
+            )
+        )
+    }
+
+    private fun openSelectedTarget() {
+        val item = appSpinner.selectedItem as? AppItem ?: return
+        val launch = packageManager.getLaunchIntentForPackage(item.packageName)
+        if (launch == null) {
+            Toast.makeText(this, "Aplikasi target tidak dapat dibuka", Toast.LENGTH_SHORT).show()
+            return
+        }
+        startActivity(launch)
     }
 
     private fun currentIpv4Dns(): java.net.InetAddress? {
@@ -129,6 +215,8 @@ class MainActivity : AppCompatActivity() {
     private fun startCapture() {
         val item = appSpinner.selectedItem as? AppItem ?: return
         try {
+            captureRequested = true
+            SessionStore.start(clearPrevious = true)
             UdpGatewayServer.start(currentIpv4Dns())
             LocalSocksServer.start()
             SocksProxy.configConnect("127.0.0.1", LocalSocksServer.PORT)
@@ -138,36 +226,52 @@ class MainActivity : AppCompatActivity() {
             SocksProxy.notificationTitle(
                 R.drawable.ic_app,
                 "Traffic Marker",
-                "Memantau metadata trafik ${item.label}"
+                "Memantau metadata trafik " + item.label
             )
             SocksProxy.start(this)
-            status.text = "Status: meminta izin VPN… • ${item.label}"
+            if (Settings.canDrawOverlays(this)) MarkerBubbleService.start(this)
+            status.text = "Status: meminta izin VPN… • " + item.label + " • Session aktif"
         } catch (t: Throwable) {
+            captureRequested = false
+            SessionStore.stop()
+            MarkerBubbleService.stop(this)
             LocalSocksServer.stop()
             UdpGatewayServer.stop()
-            status.text = "Gagal mulai: ${t.message ?: t.javaClass.simpleName}"
+            status.text = "Gagal mulai: " + (t.message ?: t.javaClass.simpleName)
         }
     }
 
     private fun stopCapture() {
+        captureRequested = false
+        SessionStore.stop()
+        MarkerBubbleService.stop(this)
         runCatching { SocksProxy.stop() }
         LocalSocksServer.stop()
         UdpGatewayServer.stop()
-        status.text = "Status: berhenti"
+        status.text = "Status: berhenti • session " + SessionStore.size() + " event"
     }
 
     private fun markSelected() {
         val e = events.getOrNull(selectedIndex) ?: run {
-            Toast.makeText(this, "Pilih satu trafik terlebih dahulu", Toast.LENGTH_SHORT).show(); return
+            Toast.makeText(this, "Pilih satu trafik terlebih dahulu", Toast.LENGTH_SHORT).show()
+            return
         }
         val marker = MarkerStore.addFrom(e)
         refreshMarkerInfo()
-        Toast.makeText(this, "Ditandai: ${marker.host}:${marker.port} ${marker.direction} ±${marker.centerSize} B", Toast.LENGTH_LONG).show()
+        Toast.makeText(
+            this,
+            "Ditandai: " + marker.host + ":" + marker.port + " " + marker.direction + " ±" + marker.centerSize + " B",
+            Toast.LENGTH_LONG
+        ).show()
     }
 
     private fun refreshMarkerInfo() {
         val all = MarkerStore.all()
-        markerInfo.text = if (all.isEmpty()) "Penanda: 0" else "Penanda: ${all.size} • terakhir ${all.last().host}:${all.last().port}"
+        markerInfo.text = if (all.isEmpty()) {
+            "Penanda: 0"
+        } else {
+            "Penanda: " + all.size + " • terakhir " + all.last().host + ":" + all.last().port
+        }
     }
 
     private fun refreshEvents() {
@@ -180,7 +284,8 @@ class MainActivity : AppCompatActivity() {
                 "IN", "UDP_IN" -> "↓"
                 else -> "•"
             }
-            "$alarm${f.format(Date(e.timeMs))}  $arrow ${e.host}:${e.port}  ${e.direction}  ${e.sizeBytes} B"
+            alarm + f.format(Date(e.timeMs)) + "  " + arrow + " " + e.host + ":" + e.port +
+                "  " + e.direction + "  " + e.sizeBytes + " B"
         })
         eventAdapter.notifyDataSetChanged()
     }
