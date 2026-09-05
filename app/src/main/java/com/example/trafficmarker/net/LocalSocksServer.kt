@@ -24,7 +24,7 @@ object LocalSocksServer {
         pool = Executors.newCachedThreadPool()
         server = ServerSocket().apply {
             reuseAddress = true
-            bind(InetSocketAddress(InetAddress.getLoopbackAddress(), PORT))
+            bind(InetSocketAddress(InetAddress.getByName("127.0.0.1"), PORT))
         }
         pool!!.execute {
             while (running.get()) {
@@ -116,7 +116,7 @@ object LocalSocksServer {
             reuseAddress = true
             bind(InetSocketAddress(0))
         }
-        reply(controlOut, 0x00, InetAddress.getLoopbackAddress(), udp.localPort)
+        reply(controlOut, 0x00, InetAddress.getByName("127.0.0.1"), udp.localPort)
 
         val remoteToHost = ConcurrentHashMap<String, Pair<String, Int>>()
         val worker = (pool ?: return).submit {
