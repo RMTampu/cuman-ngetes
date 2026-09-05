@@ -40,8 +40,14 @@ object ManualLookaheadStore {
     fun onEvent(event: TrafficEvent) {
         if (!active || event.direction == Direction.CONNECT || steps.size >= LIMIT) return
 
-        if (current.isNotEmpty() && event.timeMs - lastEventMs > MomentFingerprintEngine.BURST_GAP_MS) {
-            flushCurrent()
+        if (current.isNotEmpty()) {
+            val first = current.first()
+            val sameEndpoint =
+                MomentFingerprintEngine.endpointGroup(first.host) == MomentFingerprintEngine.endpointGroup(event.host) &&
+                    first.port == event.port
+            if (!sameEndpoint || event.timeMs - lastEventMs > MomentFingerprintEngine.BURST_GAP_MS) {
+                flushCurrent()
+            }
         }
         if (steps.size >= LIMIT) {
             active = false
