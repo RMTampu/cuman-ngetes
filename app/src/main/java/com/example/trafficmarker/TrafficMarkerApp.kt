@@ -1,7 +1,6 @@
 package com.example.trafficmarker
 
 import android.app.Application
-import com.example.trafficmarker.store.AlertManager
 import com.example.trafficmarker.store.MarkerStore
 
 class TrafficMarkerApp : Application() {
@@ -9,7 +8,6 @@ class TrafficMarkerApp : Application() {
         super.onCreate()
         AppContext.init(this)
         MarkerStore.init(this)
-        AlertManager.init(this)
     }
 }
 
