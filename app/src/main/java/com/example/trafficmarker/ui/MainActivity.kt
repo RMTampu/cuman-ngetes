@@ -187,8 +187,8 @@ class MainActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
         }
         val mark = Button(this).apply {
-            text = "Tandai Terpilih"
-            setOnClickListener { markSelected() }
+            text = "Tandai via Bubble"
+            setOnClickListener { ensureBubblePermission() }
         }
         val clear = Button(this).apply {
             text = "Hapus Penanda"
@@ -235,7 +235,7 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
 
-        root.addView(title("HTTPS tidak didekripsi. Session hanya menyimpan metadata koneksi/chunk.", 11f).apply {
+        root.addView(title("HTTPS tidak didekripsi. Tandai momen + judul dan LOAD 20 dilakukan dari bubble.", 11f).apply {
             setTextColor(Color.rgb(155, 167, 180))
             setPadding(0, 8, 0, 0)
         })
@@ -427,7 +427,8 @@ class MainActivity : AppCompatActivity() {
         markerInfo.text = if (all.isEmpty()) {
             "Penanda: 0"
         } else {
-            "Penanda: " + all.size + " • terakhir " + all.last().host + ":" + all.last().port
+            "Penanda: " + all.size + " • terakhir: " + all.last().title +
+                " • sampel " + all.last().samples.size
         }
     }
 
