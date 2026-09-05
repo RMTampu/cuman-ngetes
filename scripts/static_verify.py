@@ -65,6 +65,11 @@ for token in ["SharedPreferences", "findMatch", "5000L"]:
 if "SSL" in socks or "X509" in socks or "TrustManager" in socks:
     errors.append("unexpected TLS interception primitive detected")
 
+udpgw = (root / "app/src/main/java/com/example/trafficmarker/net/UdpGatewayServer.kt").read_text(encoding="utf-8")
+for token in ["const val PORT = 7300", "UdpgwProtocol.readFrame", "DatagramSocket", "Direction.UDP_OUT", "Direction.UDP_IN"]:
+    if token not in udpgw:
+        errors.append(f"udpgw forwarding component missing: {token}")
+
 if errors:
     print("STATIC_VERIFY: FAIL")
     for e in errors:
@@ -72,10 +77,4 @@ if errors:
     sys.exit(1)
 
 print("STATIC_VERIFY: PASS")
-print("targetSdk=30; metadata-only; TCP+UDP forwarding paths present; marker persistence and alarm path present")
-
-
-udpgw = (root / "app/src/main/java/com/example/trafficmarker/net/UdpGatewayServer.kt").read_text(encoding="utf-8")
-for token in ["const val PORT = 7300", "UdpgwProtocol.readFrame", "DatagramSocket", "Direction.UDP_OUT", "Direction.UDP_IN"]:
-    if token not in udpgw:
-        errors.append(f"udpgw forwarding component missing: {token}")
+print("targetSdk=30; metadata-only; TCP+UDP/QUIC forwarding paths present; marker persistence and alarm path present")
