@@ -14,21 +14,18 @@ interface LookaheadProvider {
 }
 
 object LookaheadController {
-    const val MIN_WINDOW = 100
-    const val MAX_WINDOW = 300
+    const val WINDOW = 20
 
     fun scan(
         marker: Marker,
-        provider: LookaheadProvider?,
-        requestedWindow: Int
+        provider: LookaheadProvider?
     ): LookaheadResult {
         if (provider == null) {
             return LookaheadEngine.unavailable("Belum ada provider data depan")
         }
 
-        val limit = requestedWindow.coerceIn(MIN_WINDOW, MAX_WINDOW)
         val batch = try {
-            provider.loadAhead(limit)
+            provider.loadAhead(WINDOW)
         } catch (t: Throwable) {
             return LookaheadEngine.unavailable(
                 "Provider gagal: " + (t.message ?: t.javaClass.simpleName)
@@ -37,7 +34,7 @@ object LookaheadController {
 
         return LookaheadEngine.scan(
             marker = marker,
-            orderedItems = batch.items.take(limit),
+            orderedItems = batch.items.take(WINDOW),
             exactOrdering = batch.exactOrdering
         )
     }
