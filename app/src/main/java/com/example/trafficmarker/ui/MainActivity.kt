@@ -12,9 +12,8 @@ import com.example.trafficmarker.model.TrafficEvent
 import com.example.trafficmarker.net.LocalSocksServer
 import com.example.trafficmarker.net.TrafficBus
 import com.example.trafficmarker.store.MarkerStore
-import com.ooimi.socket.proxy.SocketProxy
-import com.ooimi.socket.proxy.callback.SocketProxyStatusCallback
-import com.ooimi.socket.proxy.config.SocksProxyConfig
+import com.ooimi.socks.ProxyModel
+import com.ooimi.socks.SocksProxy
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -119,24 +118,17 @@ class MainActivity : AppCompatActivity() {
         val item = appSpinner.selectedItem as? AppItem ?: return
         try {
             LocalSocksServer.start()
-            SocketProxy.setProxyStatusCallback(object : SocketProxyStatusCallback() {
-                override fun onStart() { runOnUiThread { status.text = "Status: aktif • ${item.label}" } }
-                override fun onStop() { runOnUiThread { status.text = "Status: berhenti" } }
-            })
-            SocketProxy.startProxy(this, SocksProxyConfig().apply {
-                notificationTitle = "Traffic Marker"
-                notificationDesc = "Memantau metadata trafik ${item.label}"
-                notificationIcon = R.drawable.ic_app
-                socksServiceAddress = "127.0.0.1"
-                socksServicePort = LocalSocksServer.PORT
-                routers = arrayListOf("0.0.0.0/0")
-                dnsServerAddress = "1.1.1.1"
-                dnsServerPort = 53
-                passModel = 1
-                appList = arrayListOf(item.packageName)
-                supportIpV6 = false
-            })
-            status.text = "Status: meminta izin VPN…"
+            SocksProxy.configConnect("127.0.0.1", LocalSocksServer.PORT)
+            SocksProxy.setProxyModel(ProxyModel.WHITE_LIST)
+            SocksProxy.setAppList(listOf(item.packageName))
+            SocksProxy.setDnsService("1.1.1.1")
+            SocksProxy.notificationTitle(
+                R.drawable.ic_app,
+                "Traffic Marker",
+                "Memantau metadata trafik ${item.label}"
+            )
+            SocksProxy.start(this)
+            status.text = "Status: meminta izin VPN… • ${item.label}"
         } catch (t: Throwable) {
             LocalSocksServer.stop()
             status.text = "Gagal mulai: ${t.message ?: t.javaClass.simpleName}"
@@ -144,7 +136,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun stopCapture() {
-        runCatching { SocketProxy.stopProxy(this) }
+        runCatching { SocksProxy.stop() }
         LocalSocksServer.stop()
         status.text = "Status: berhenti"
     }
