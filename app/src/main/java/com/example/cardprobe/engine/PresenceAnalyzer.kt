@@ -8,15 +8,19 @@ import kotlin.math.max
 
 object PresenceAnalyzer {
     private const val MIN_TRIALS = 3
+    private const val CROSS_SESSION_MIN_TRIALS = 6
 
     fun analyze(trials: List<ProbeTrial>): PresenceReport {
+        val sessions = trials.map { it.sessionId }.distinct().size
+
         if (trials.size < MIN_TRIALS) {
             return PresenceReport(
                 PresenceStatus.NEED_MORE_TRIALS,
                 trials.size,
+                sessions,
                 0,
                 0,
-                "Butuh minimal 3 hand. Data ini hanya menguji timing metadata, bukan isi kartu."
+                "Butuh minimal 3 hand. Untuk bukti lintas sesi gunakan minimal 6 hand pada minimal 2 sesi."
             )
         }
 
@@ -36,20 +40,38 @@ object PresenceAnalyzer {
         }
 
         val needed = ceil(trials.size * 0.67).toInt()
+        val crossNeeded = ceil(trials.size * 0.75).toInt()
+        val prefetchCandidate = prefetch >= needed && reveal < needed
+        val crossSession =
+            trials.size >= CROSS_SESSION_MIN_TRIALS &&
+                sessions >= 2 &&
+                prefetch >= crossNeeded &&
+                reveal < needed
 
         return when {
-            prefetch >= needed && reveal < needed ->
+            crossSession ->
+                PresenceReport(
+                    PresenceStatus.PREFETCH_CROSS_SESSION,
+                    trials.size,
+                    sessions,
+                    prefetch,
+                    reveal,
+                    "Kandidat prefetch bertahan lintas sesi. Ini bukti timing yang lebih kuat, tetapi tetap tidak membuktikan nilai hole-card tersedia dalam bentuk yang dapat dibaca."
+                )
+            prefetchCandidate ->
                 PresenceReport(
                     PresenceStatus.PREFETCH_CANDIDATE,
                     trials.size,
+                    sessions,
                     prefetch,
                     reveal,
-                    "Trafik lebih kuat saat kartu tertutup dan relatif tenang saat reveal. Ini kandidat prefetch, bukan bukti nilai hole-card sudah diketahui."
+                    "Trafik lebih kuat saat kartu tertutup dan relatif tenang saat reveal. Ulangi pada sesi target baru untuk menguji apakah pola bertahan."
                 )
             reveal >= needed ->
                 PresenceReport(
                     PresenceStatus.REVEAL_REQUIRES_NETWORK,
                     trials.size,
+                    sessions,
                     prefetch,
                     reveal,
                     "Trafik inbound signifikan muncul konsisten di sekitar reveal. Data penting kemungkinan masih datang saat kartu dibuka."
@@ -58,6 +80,7 @@ object PresenceAnalyzer {
                 PresenceReport(
                     PresenceStatus.INCONCLUSIVE,
                     trials.size,
+                    sessions,
                     prefetch,
                     reveal,
                     "Metadata belum membedakan apakah data kartu sudah tersedia sebelum reveal."

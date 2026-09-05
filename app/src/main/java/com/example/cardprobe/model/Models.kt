@@ -19,12 +19,17 @@ data class ProbeTrial(
     val dealInBytes: Long,
     val dealInEvents: Int,
     val revealInBytes: Long,
-    val revealInEvents: Int
+    val revealInEvents: Int,
+    val dealTopEndpoint: String = "",
+    val dealTopBytes: Long = 0L,
+    val revealTopEndpoint: String = "",
+    val revealTopBytes: Long = 0L
 )
 
 enum class PresenceStatus {
     NEED_MORE_TRIALS,
     PREFETCH_CANDIDATE,
+    PREFETCH_CROSS_SESSION,
     REVEAL_REQUIRES_NETWORK,
     INCONCLUSIVE
 }
@@ -32,6 +37,7 @@ enum class PresenceStatus {
 data class PresenceReport(
     val status: PresenceStatus,
     val trialCount: Int,
+    val sessionCount: Int,
     val prefetchVotes: Int,
     val revealVotes: Int,
     val message: String

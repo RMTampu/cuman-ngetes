@@ -6,8 +6,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class PresenceAnalyzerTest {
-    private fun trial(deal: Long, reveal: Long, base: Long = 100L) =
-        ProbeTrial(1, 1, 2, base, 1, deal, 5, reveal, 1)
+    private fun trial(
+        deal: Long,
+        reveal: Long,
+        base: Long = 100L,
+        session: Long = 1L
+    ) = ProbeTrial(session, 1, 2, base, 1, deal, 5, reveal, 1)
 
     @Test
     fun detectsPrefetchCandidateAcrossRepeatedHands() {
@@ -19,6 +23,22 @@ class PresenceAnalyzerTest {
             )
         )
         assertEquals(PresenceStatus.PREFETCH_CANDIDATE, r.status)
+    }
+
+    @Test
+    fun upgradesToCrossSessionOnlyAfterRepeatedSessions() {
+        val r = PresenceAnalyzer.analyze(
+            listOf(
+                trial(5000, 100, session = 1),
+                trial(5200, 120, session = 1),
+                trial(4800, 100, session = 1),
+                trial(6100, 80, session = 2),
+                trial(5700, 110, session = 2),
+                trial(6300, 90, session = 2)
+            )
+        )
+        assertEquals(PresenceStatus.PREFETCH_CROSS_SESSION, r.status)
+        assertEquals(2, r.sessionCount)
     }
 
     @Test

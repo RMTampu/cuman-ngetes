@@ -1,17 +1,32 @@
 package com.example.cardprobe.probe
 
+import android.content.ContentValues
 import android.content.Context
+import android.os.Build
+import android.provider.MediaStore
 import com.example.cardprobe.engine.PresenceAnalyzer
 import com.example.cardprobe.model.Direction
 import com.example.cardprobe.model.PresenceReport
 import com.example.cardprobe.model.ProbeEvent
 import com.example.cardprobe.model.ProbeTrial
+import java.text.SimpleDateFormat
 import java.util.ArrayDeque
+import java.util.Date
+import java.util.Locale
 
 object ProbeStore {
+    const val EXPORT_FOLDER = "CardPresenceProbe"
+
     private const val PREFS = "card_probe_dataset"
     private const val KEY_TRIALS = "trials"
     private const val MAX_EVENTS = 20000
+
+    private data class WindowStats(
+        val bytes: Long,
+        val events: Int,
+        val topEndpoint: String,
+        val topBytes: Long
+    )
 
     private val events = ArrayDeque<ProbeEvent>()
     private val trials = ArrayList<ProbeTrial>()
@@ -27,10 +42,11 @@ object ProbeStore {
     }
 
     @Synchronized
-    fun newCaptureSession() {
+    fun newCaptureSession(): Int {
         sessionId = System.currentTimeMillis()
         events.clear()
         activeDealAtMs = null
+        return sessionCount() + 1
     }
 
     @Synchronized
@@ -65,12 +81,16 @@ object ProbeStore {
             sessionId = sessionId,
             dealAtMs = dealAt,
             revealAtMs = revealAtMs,
-            baselineInBytes = baseline.first,
-            baselineInEvents = baseline.second,
-            dealInBytes = deal.first,
-            dealInEvents = deal.second,
-            revealInBytes = reveal.first,
-            revealInEvents = reveal.second
+            baselineInBytes = baseline.bytes,
+            baselineInEvents = baseline.events,
+            dealInBytes = deal.bytes,
+            dealInEvents = deal.events,
+            revealInBytes = reveal.bytes,
+            revealInEvents = reveal.events,
+            dealTopEndpoint = deal.topEndpoint,
+            dealTopBytes = deal.topBytes,
+            revealTopEndpoint = reveal.topEndpoint,
+            revealTopBytes = reveal.topBytes
         )
         trials.add(trial)
         activeDealAtMs = null
@@ -85,10 +105,14 @@ object ProbeStore {
     fun allTrials(): List<ProbeTrial> = trials.toList()
 
     @Synchronized
+    fun sessionCount(): Int = trials.map { it.sessionId }.distinct().size
+
+    @Synchronized
     fun resetDataset() {
         events.clear()
         trials.clear()
         activeDealAtMs = null
+        sessionId = System.currentTimeMillis()
         persist()
     }
 
@@ -98,6 +122,7 @@ object ProbeStore {
         val active = if (activeDealAtMs == null) "SIAP" else "MENUNGGU REVEAL"
         return buildString {
             append("HAND: ").append(trials.size).append(" selesai • ").append(active).append('\n')
+            append("SESI DATA: ").append(report.sessionCount).append('\n')
             append("STATUS: ").append(report.status.name).append('\n')
             append("Vote prefetch: ").append(report.prefetchVotes)
                 .append(" • reveal-network: ").append(report.revealVotes).append('\n')
@@ -106,20 +131,107 @@ object ProbeStore {
     }
 
     @Synchronized
-    private fun inboundStats(from: Long, to: Long): Pair<Long, Int> {
-        var bytes = 0L
+    fun detailText(limit: Int = 12): String {
+        if (trials.isEmpty()) return "Belum ada hand."
+        val sessionOrder = trials.map { it.sessionId }.distinct()
+        return trials.takeLast(limit).mapIndexed { localIndex, t ->
+            val absolute = trials.size - minOf(limit, trials.size) + localIndex + 1
+            val session = sessionOrder.indexOf(t.sessionId) + 1
+            "H" + absolute +
+                " / S" + session +
+                " • base ↓" + t.baselineInBytes + " B" +
+                " • deal ↓" + t.dealInBytes + " B/" + t.dealInEvents +
+                " [" + endpointText(t.dealTopEndpoint, t.dealTopBytes) + "]" +
+                " • reveal ↓" + t.revealInBytes + " B/" + t.revealInEvents +
+                " [" + endpointText(t.revealTopEndpoint, t.revealTopBytes) + "]"
+        }.joinToString("\n")
+    }
+
+    @Synchronized
+    fun exportCsv(context: Context): String {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            throw IllegalStateException("Export publik membutuhkan Android 10 atau lebih baru")
+        }
+
+        val formatter = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US)
+        val name = "CardPresenceProbe-" + formatter.format(Date()) + ".csv"
+        val values = ContentValues().apply {
+            put(MediaStore.Downloads.DISPLAY_NAME, name)
+            put(MediaStore.Downloads.MIME_TYPE, "text/csv")
+            put(
+                MediaStore.Downloads.RELATIVE_PATH,
+                android.os.Environment.DIRECTORY_DOWNLOADS + "/" + EXPORT_FOLDER
+            )
+        }
+
+        val uri = context.contentResolver.insert(
+            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+            values
+        ) ?: throw IllegalStateException("Tidak dapat membuat file export")
+
+        context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { out ->
+            out.appendLine(
+                "hand,session_id,deal_at_ms,reveal_at_ms,baseline_in_bytes,baseline_in_events," +
+                    "deal_in_bytes,deal_in_events,deal_top_endpoint,deal_top_bytes," +
+                    "reveal_in_bytes,reveal_in_events,reveal_top_endpoint,reveal_top_bytes"
+            )
+            trials.forEachIndexed { index, t ->
+                out.appendLine(
+                    listOf(
+                        index + 1,
+                        t.sessionId,
+                        t.dealAtMs,
+                        t.revealAtMs,
+                        t.baselineInBytes,
+                        t.baselineInEvents,
+                        t.dealInBytes,
+                        t.dealInEvents,
+                        csv(t.dealTopEndpoint),
+                        t.dealTopBytes,
+                        t.revealInBytes,
+                        t.revealInEvents,
+                        csv(t.revealTopEndpoint),
+                        t.revealTopBytes
+                    ).joinToString(",")
+                )
+            }
+        } ?: throw IllegalStateException("Tidak dapat membuka file export")
+
+        return "Download/" + EXPORT_FOLDER + "/" + name
+    }
+
+    @Synchronized
+    private fun inboundStats(from: Long, to: Long): WindowStats {
+        var totalBytes = 0L
         var count = 0
+        val byEndpoint = LinkedHashMap<String, Long>()
+
         events.forEach { e ->
             if (
                 e.timeMs in from..to &&
                 (e.direction == Direction.IN || e.direction == Direction.UDP_IN)
             ) {
-                bytes += e.sizeBytes.toLong()
+                totalBytes += e.sizeBytes.toLong()
                 count++
+                val endpoint = e.host + ":" + e.port
+                byEndpoint[endpoint] = (byEndpoint[endpoint] ?: 0L) + e.sizeBytes.toLong()
             }
         }
-        return bytes to count
+
+        val top = byEndpoint.maxByOrNull { it.value }
+        return WindowStats(
+            bytes = totalBytes,
+            events = count,
+            topEndpoint = top?.key.orEmpty(),
+            topBytes = top?.value ?: 0L
+        )
     }
+
+    private fun endpointText(endpoint: String, bytes: Long): String =
+        if (endpoint.isBlank()) "-" else endpoint + " " + bytes + "B"
+
+    private fun csv(value: String): String =
+        """ + value.replace(""", """") + """
 
     @Synchronized
     private fun persist() {
@@ -134,7 +246,11 @@ object ProbeStore {
                 t.dealInBytes,
                 t.dealInEvents,
                 t.revealInBytes,
-                t.revealInEvents
+                t.revealInEvents,
+                t.dealTopEndpoint,
+                t.dealTopBytes,
+                t.revealTopEndpoint,
+                t.revealTopBytes
             ).joinToString(",")
         }
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -150,9 +266,11 @@ object ProbeStore {
         val raw = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getString(KEY_TRIALS, "")
             .orEmpty()
+
         raw.lineSequence().filter { it.isNotBlank() }.forEach { line ->
             val p = line.split(',')
-            if (p.size != 9) return@forEach
+            if (p.size != 9 && p.size != 13) return@forEach
+
             runCatching {
                 ProbeTrial(
                     sessionId = p[0].toLong(),
@@ -163,7 +281,11 @@ object ProbeStore {
                     dealInBytes = p[5].toLong(),
                     dealInEvents = p[6].toInt(),
                     revealInBytes = p[7].toLong(),
-                    revealInEvents = p[8].toInt()
+                    revealInEvents = p[8].toInt(),
+                    dealTopEndpoint = if (p.size >= 13) p[9] else "",
+                    dealTopBytes = if (p.size >= 13) p[10].toLong() else 0L,
+                    revealTopEndpoint = if (p.size >= 13) p[11] else "",
+                    revealTopBytes = if (p.size >= 13) p[12].toLong() else 0L
                 )
             }.getOrNull()?.let(trials::add)
         }

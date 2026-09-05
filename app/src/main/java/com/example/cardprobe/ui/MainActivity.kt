@@ -9,7 +9,6 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
-import android.view.Gravity
 import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.Button
@@ -37,6 +36,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var appSpinner: Spinner
     private lateinit var status: TextView
     private lateinit var result: TextView
+    private lateinit var details: TextView
     private lateinit var diagnostics: TextView
     private val handler = Handler(Looper.getMainLooper())
     private var captureRequested = false
@@ -44,6 +44,7 @@ class MainActivity : AppCompatActivity() {
     private val tick = object : Runnable {
         override fun run() {
             result.text = ProbeStore.summary()
+            details.text = ProbeStore.detailText()
             diagnostics.text = ProbeDiagnostics.snapshot(isVpnActive())
             handler.postDelayed(this, 1000L)
         }
@@ -95,6 +96,15 @@ class MainActivity : AppCompatActivity() {
         row2.addView(button("BUKA TARGET") { openTarget() }, LinearLayout.LayoutParams(0, -2, 1f))
         content.addView(row2)
 
+        val row3 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        row3.addView(button("SESI BARU") {
+            ProbeStore.cancelActive()
+            val next = ProbeStore.newCaptureSession()
+            Toast.makeText(this, "Sesi baru • calon S" + next, Toast.LENGTH_SHORT).show()
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        row3.addView(button("EXPORT CSV") { exportDataset() }, LinearLayout.LayoutParams(0, -2, 1f))
+        content.addView(row3)
+
         status = text("Status: berhenti", 13f, Color.WHITE)
         content.addView(status)
 
@@ -105,9 +115,17 @@ class MainActivity : AppCompatActivity() {
         }
         content.addView(result)
 
+        content.addView(text("DETAIL HAND / ENDPOINT", 13f, Color.rgb(190, 205, 220)))
+        details = text(ProbeStore.detailText(), 9.5f, Color.LTGRAY).apply {
+            setPadding(12, 10, 12, 10)
+            setBackgroundColor(Color.rgb(20, 25, 31))
+        }
+        content.addView(details)
+
         content.addView(button("RESET DATASET") {
             ProbeStore.resetDataset()
             result.text = ProbeStore.summary()
+            details.text = ProbeStore.detailText()
             Toast.makeText(this, "Dataset dihapus", Toast.LENGTH_SHORT).show()
         })
 
@@ -120,13 +138,26 @@ class MainActivity : AppCompatActivity() {
 
         content.addView(
             text(
-                "Interpretasi: PREFETCH_CANDIDATE bukan bukti isi hole-card sudah diketahui. Aplikasi tidak membaca payload HTTPS atau nilai kartu.",
+                "PREFETCH_CROSS_SESSION adalah bukti timing lintas sesi yang lebih kuat, tetapi aplikasi tetap tidak membaca payload HTTPS atau nilai kartu.",
                 11f,
                 Color.rgb(160, 172, 185)
             )
         )
 
         return ScrollView(this).apply { addView(content) }
+    }
+
+    private fun exportDataset() {
+        try {
+            val path = ProbeStore.exportCsv(this)
+            Toast.makeText(this, "Tersimpan: " + path, Toast.LENGTH_LONG).show()
+        } catch (t: Throwable) {
+            Toast.makeText(
+                this,
+                "Gagal export: " + (t.message ?: t.javaClass.simpleName),
+                Toast.LENGTH_LONG
+            ).show()
+        }
     }
 
     private fun button(label: String, action: () -> Unit) =

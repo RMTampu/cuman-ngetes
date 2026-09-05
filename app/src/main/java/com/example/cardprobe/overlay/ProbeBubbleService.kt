@@ -42,6 +42,8 @@ class ProbeBubbleService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private var root: View? = null
     private var status: TextView? = null
+    private var detail: TextView? = null
+    private var detailVisible = false
 
     override fun onCreate() {
         super.onCreate()
@@ -71,6 +73,7 @@ class ProbeBubbleService : Service() {
 
     private fun showPanel() {
         if (root != null) return
+
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(7), dp(5), dp(7), dp(7))
@@ -91,45 +94,84 @@ class ProbeBubbleService : Service() {
                     Toast.makeText(this@ProbeBubbleService, "Tekan DEAL terlebih dahulu", Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
+
                 val revealAt = System.currentTimeMillis()
                 status?.text = "Mengumpulkan window reveal 1,2 detik…"
+
                 handler.postDelayed({
                     val trial = ProbeStore.finishReveal(revealAt)
-                    status?.text = ProbeStore.summary()
+                    refreshText()
                     if (trial != null) {
                         Toast.makeText(
                             this@ProbeBubbleService,
-                            "Hand tersimpan • deal ↓" + trial.dealInBytes + " B • reveal ↓" + trial.revealInBytes + " B",
+                            "Hand tersimpan • deal ↓" + trial.dealInBytes +
+                                " B • reveal ↓" + trial.revealInBytes + " B",
                             Toast.LENGTH_LONG
                         ).show()
                     }
                 }, 1250L)
             }
         }
-        val cancel = label("BATAL HAND", Color.GRAY, 10.5f).apply {
+        val session = label("SESI BARU (TARGET REOPEN)", Color.rgb(120, 190, 255), 10.5f).apply {
             setOnClickListener {
                 ProbeStore.cancelActive()
-                status?.text = ProbeStore.summary()
+                val next = ProbeStore.newCaptureSession()
+                refreshText()
+                Toast.makeText(
+                    this@ProbeBubbleService,
+                    "Sesi capture baru dimulai • dataset lama tetap ada • calon S" + next,
+                    Toast.LENGTH_LONG
+                ).show()
             }
         }
-        val st = label(ProbeStore.summary(), Color.WHITE, 9.5f).apply {
+        val details = label("DETAIL HAND ▸", Color.LTGRAY, 10.5f).apply {
+            setOnClickListener {
+                detailVisible = !detailVisible
+                detail?.visibility = if (detailVisible) View.VISIBLE else View.GONE
+                text = if (detailVisible) "DETAIL HAND ▾" else "DETAIL HAND ▸"
+                if (detailVisible) detail?.text = ProbeStore.detailText(6)
+            }
+        }
+        val cancel = label("BATAL HAND", Color.GRAY, 10f).apply {
+            setOnClickListener {
+                ProbeStore.cancelActive()
+                refreshText()
+            }
+        }
+        val st = label(ProbeStore.summary(), Color.WHITE, 9.2f).apply {
             setBackgroundColor(Color.rgb(24, 30, 37))
         }
         status = st
+        val detailText = label(ProbeStore.detailText(6), Color.LTGRAY, 8.2f).apply {
+            visibility = View.GONE
+            setBackgroundColor(Color.rgb(20, 25, 31))
+        }
+        detail = detailText
 
         box.addView(header)
         box.addView(deal)
         box.addView(reveal)
+        box.addView(session)
+        box.addView(details)
         box.addView(cancel)
         box.addView(st)
+        box.addView(detailText)
 
-        val lp = params(dp(250), WindowManager.LayoutParams.WRAP_CONTENT).apply {
+        val screenW = resources.displayMetrics.widthPixels
+        val width = minOf(dp(275), (screenW * 0.55f).toInt())
+        val lp = params(width, WindowManager.LayoutParams.WRAP_CONTENT).apply {
             x = dp(12)
-            y = dp(90)
+            y = dp(70)
         }
+
         makeDraggable(header, box, lp)
         root = box
         wm.addView(box, lp)
+    }
+
+    private fun refreshText() {
+        status?.text = ProbeStore.summary()
+        if (detailVisible) detail?.text = ProbeStore.detailText(6)
     }
 
     private fun label(textValue: String, color: Int, size: Float) =
@@ -137,7 +179,7 @@ class ProbeBubbleService : Service() {
             text = textValue
             textSize = size
             setTextColor(color)
-            setPadding(dp(7), dp(6), dp(7), dp(6))
+            setPadding(dp(7), dp(5), dp(7), dp(5))
         }
 
     private fun params(width: Int, height: Int) =
@@ -159,6 +201,7 @@ class ProbeBubbleService : Service() {
         var downY = 0f
         var startX = 0
         var startY = 0
+
         handle.setOnTouchListener { _, e ->
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
@@ -169,8 +212,10 @@ class ProbeBubbleService : Service() {
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    lp.x = startX + (e.rawX - downX).toInt()
-                    lp.y = startY + (e.rawY - downY).toInt()
+                    val screenW = resources.displayMetrics.widthPixels
+                    val screenH = resources.displayMetrics.heightPixels
+                    lp.x = (startX + (e.rawX - downX).toInt()).coerceIn(0, maxOf(0, screenW - dp(80)))
+                    lp.y = (startY + (e.rawY - downY).toInt()).coerceIn(0, maxOf(0, screenH - dp(50)))
                     runCatching { wm.updateViewLayout(window, lp) }
                     true
                 }

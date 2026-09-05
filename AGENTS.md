@@ -14,9 +14,12 @@ Sebelum mengubah repository ini, baca file ini penuh.
 - Forwarding target harus tetap aktif; jangan memblokir koneksi target secara sengaja.
 - Tombol DEAL/KARTU TERTUTUP dan REVEAL adalah ground-truth manual.
 - PREFETCH_CANDIDATE hanya berarti pola timing konsisten dengan data yang mungkin sudah tersedia lebih awal. Status itu bukan bukti nilai kartu tersembunyi sudah diketahui client.
+- PREFETCH_CROSS_SESSION hanya boleh muncul bila kandidat prefetch bertahan pada minimal 6 hand dan minimal 2 sesi capture.
 - REVEAL_REQUIRES_NETWORK berarti ada trafik inbound signifikan yang konsisten di sekitar reveal.
 - INCONCLUSIVE berarti metadata tidak cukup membedakan kedua kemungkinan.
 - Dataset trial harus dipertahankan lintas restart aplikasi sampai pengguna memilih RESET DATASET.
+- Pengguna dapat memulai SESI BARU tanpa menghapus dataset lama untuk menguji konsistensi lintas sesi.
+- Dataset harus dapat diekspor ke Download/CardPresenceProbe.
 
 ## Build
 - Gunakan GitHub Actions untuk menghasilkan APK uji.

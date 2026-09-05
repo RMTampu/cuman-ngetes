@@ -43,6 +43,7 @@ for name, pattern in {
     "arm64 only": r'abiFilters\s*\+=\s*listOf\("arm64-v8a"\)',
     "application id": r'applicationId\s*=\s*"com\.example\.cardprobe"',
     "socks dependency": r'com\.ooimi\.library:socks:1\.1\.1',
+    "version 0.1.1": r'versionName\s*=\s*"0\.1\.1"',
 }.items():
     if not re.search(pattern, gradle):
         errors.append("build config missing: " + name)
@@ -58,11 +59,17 @@ for banned in ["TrustManager", "X509TrustManager", "SSLContext", "LOAD 20", "Arr
 
 for token in [
     "PREFETCH_CANDIDATE",
+    "PREFETCH_CROSS_SESSION",
     "REVEAL_REQUIRES_NETWORK",
     "INCONCLUSIVE",
     "KARTU TERTUTUP / DEAL",
-    "REVEAL",
+    "SESI BARU (TARGET REOPEN)",
     "ProbeStore.finishReveal",
+    "ProbeStore.exportCsv",
+    "dealTopEndpoint",
+    "revealTopEndpoint",
+    "Download/",
+    "CardPresenceProbe",
     "SocksProxy.setAppList",
     "ProxyModel.WHITE_LIST",
     "UdpGatewayServer.start",
@@ -87,4 +94,4 @@ if errors:
     sys.exit(1)
 
 print("STATIC_VERIFY: PASS")
-print("Card Presence Probe; Android 11; arm64; metadata only; no TLS decryption; persistent trials")
+print("Card Presence Probe v0.1.1; cross-session validation; endpoint metadata; CSV export; no TLS decryption")
