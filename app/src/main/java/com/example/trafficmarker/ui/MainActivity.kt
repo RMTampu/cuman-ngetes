@@ -23,6 +23,8 @@ import com.example.trafficmarker.net.LocalSocksServer
 import com.example.trafficmarker.net.TrafficBus
 import com.example.trafficmarker.net.UdpGatewayServer
 import com.example.trafficmarker.overlay.MarkerBubbleService
+import com.example.trafficmarker.recorder.TrafficRecorder
+import com.example.trafficmarker.recorder.StepRecorder
 import com.example.trafficmarker.store.MarkerStore
 import com.example.trafficmarker.store.MarkerBackupManager
 import com.example.trafficmarker.store.SessionStore
@@ -309,6 +311,8 @@ class MainActivity : AppCompatActivity() {
             val dns = currentIpv4Dns()
             DiagnosticStore.reset(item.packageName, dns?.hostAddress)
             SessionStore.start(clearPrevious = true)
+            TrafficRecorder.start(clearPrevious = true)
+            StepRecorder.reset()
             UdpGatewayServer.start(dns)
             LocalSocksServer.start()
             SocksProxy.configConnect("127.0.0.1", LocalSocksServer.PORT)
@@ -323,10 +327,11 @@ class MainActivity : AppCompatActivity() {
             DiagnosticStore.setVpnRequested(true)
             SocksProxy.start(this)
             if (Settings.canDrawOverlays(this)) MarkerBubbleService.start(this)
-            status.text = "Status: meminta izin VPN… • " + item.label + " • Session aktif"
+            status.text = "Status: meminta izin VPN… • " + item.label + " • Session + Recorder aktif"
         } catch (t: Throwable) {
             captureRequested = false
             SessionStore.stop()
+            TrafficRecorder.stop()
             MarkerBubbleService.stop(this)
             LocalSocksServer.stop()
             UdpGatewayServer.stop()
@@ -338,6 +343,7 @@ class MainActivity : AppCompatActivity() {
         captureRequested = false
         DiagnosticStore.setVpnRequested(false)
         SessionStore.stop()
+        TrafficRecorder.stop()
         MarkerBubbleService.stop(this)
         runCatching { SocksProxy.stop() }
         LocalSocksServer.stop()
