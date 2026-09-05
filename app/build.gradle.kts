@@ -11,8 +11,8 @@ android {
         applicationId = "com.example.trafficmarker"
         minSdk = 23
         targetSdk = 30
-        versionCode = 6
-        versionName = "0.3.1"
+        versionCode = 7
+        versionName = "0.3.2"
         ndk {
             abiFilters += listOf("arm64-v8a")
         }
