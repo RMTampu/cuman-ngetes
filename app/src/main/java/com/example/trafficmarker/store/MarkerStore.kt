@@ -42,6 +42,38 @@ object MarkerStore {
         save()
     }
 
+    @Synchronized
+    fun importUnique(imported: List<Marker>): Int {
+        val signatures = items.mapTo(HashSet()) { signatureOf(it) }
+        val ids = items.mapTo(HashSet()) { it.id }
+        var added = 0
+
+        imported.forEach { marker ->
+            val signature = signatureOf(marker)
+            if (signature in signatures) return@forEach
+
+            val safeMarker = if (marker.id in ids) {
+                marker.copy(id = java.util.UUID.randomUUID().toString())
+            } else {
+                marker
+            }
+            items += safeMarker
+            signatures += signature
+            ids += safeMarker.id
+            added++
+        }
+
+        if (added > 0) save()
+        return added
+    }
+
+    private fun signatureOf(marker: Marker): String =
+        marker.host.lowercase() + "|" +
+            marker.port + "|" +
+            marker.direction.name + "|" +
+            marker.centerSize + "|" +
+            marker.tolerancePercent
+
     fun findMatch(event: TrafficEvent): Marker? {
         val marker = items.firstOrNull { it.matches(event) } ?: return null
         val now = System.currentTimeMillis()
