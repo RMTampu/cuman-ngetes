@@ -158,7 +158,7 @@ bubble = (root / "app/src/main/java/com/example/trafficmarker/overlay/MarkerBubb
 for token in [
     "TYPE_APPLICATION_OVERLAY",
     "TANDAI MOMEN + JUDUL",
-    "LOAD 20 MANUAL",
+    "MULAI LOAD 20",
     "showMarkerTitlePrompt",
     "MarkerStore.addMomentSample",
     "ManualLookaheadStore.start",
