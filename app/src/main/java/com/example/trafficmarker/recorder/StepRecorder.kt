@@ -62,6 +62,21 @@ object StepRecorder {
                     .append(" = ").append(last.label)
                     .append(" • ").append(last.events.size).append(" event")
                     .append(" • ").append(last.resultAtMs - last.startedAtMs).append(" ms")
+
+                val inbound = last.events.filter {
+                    it.direction.name == "IN" || it.direction.name == "UDP_IN"
+                }
+                if (inbound.isEmpty()) {
+                    append("\nServer IN sebelum hasil: TIDAK ADA")
+                } else {
+                    val bytes = inbound.sumOf { it.sizeBytes }
+                    val lastInbound = inbound.maxOf { it.timeMs }
+                    val leadMs = (last.resultAtMs - lastInbound).coerceAtLeast(0L)
+                    append("\nServer IN sebelum hasil: ")
+                        .append(inbound.size).append(" event / ")
+                        .append(bytes).append(" B")
+                        .append(" • terakhir ").append(leadMs).append(" ms sebelum label")
+                }
             }
         }
     }
