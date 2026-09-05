@@ -13,16 +13,16 @@
     </queries>
 
     <application
-        android:name=".TrafficMarkerApp"
+        android:name=".CardProbeApp"
         android:allowBackup="true"
         android:icon="@drawable/ic_app"
-        android:label="Traffic Marker"
+        android:label="Card Presence Probe"
         android:roundIcon="@drawable/ic_app"
         android:supportsRtl="true"
-        android:theme="@style/Theme.TrafficMarker">
+        android:theme="@style/Theme.CardProbe">
 
         <service
-            android:name=".overlay.MarkerBubbleService"
+            android:name=".overlay.ProbeBubbleService"
             android:exported="false" />
 
         <activity

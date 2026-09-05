@@ -4,15 +4,15 @@ plugins {
 }
 
 android {
-    namespace = "com.example.trafficmarker"
+    namespace = "com.example.cardprobe"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.trafficmarker"
+        applicationId = "com.example.cardprobe"
         minSdk = 23
         targetSdk = 30
-        versionCode = 8
-        versionName = "0.3.3"
+        versionCode = 1
+        versionName = "0.1.0"
         ndk {
             abiFilters += listOf("arm64-v8a")
         }

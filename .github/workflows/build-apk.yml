@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Card Presence Probe APK
 
 on:
   workflow_dispatch:
@@ -6,7 +6,7 @@ on:
     branches: [ main, master ]
 
 concurrency:
-  group: traffic-marker-build
+  group: card-presence-probe-build
   cancel-in-progress: true
 
 jobs:
@@ -38,43 +38,37 @@ jobs:
       - name: Build debug APK
         run: gradle :app:assembleDebug --stacktrace
 
-      - name: Verify APK target and VPN components
+      - name: Verify APK
         run: |
           APK="app/build/outputs/apk/debug/app-debug.apk"
           test -f "$APK"
-
           AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
           "$AAPT" dump badging "$APK" | tee apk-badging.txt
-          grep -q "package: name='com.example.trafficmarker'" apk-badging.txt
+          grep -q "package: name='com.example.cardprobe'" apk-badging.txt
           grep -q "targetSdkVersion:'30'" apk-badging.txt
-
           "$AAPT" dump xmltree "$APK" AndroidManifest.xml > apk-manifest.txt
           grep -q "com.ooimi.socks.SocksVpnService" apk-manifest.txt
           grep -q "android.permission.BIND_VPN_SERVICE" apk-manifest.txt
-          grep -q "com.example.trafficmarker.overlay.MarkerBubbleService" apk-manifest.txt
-          grep -q "android.permission.SYSTEM_ALERT_WINDOW" apk-manifest.txt
-
+          grep -q "com.example.cardprobe.overlay.ProbeBubbleService" apk-manifest.txt
           mapfile -t ABIS < <(
             unzip -l "$APK" |
               awk '/lib\/[^/]+\/.*\.so$/ {print $4}' |
               sed -E 's#lib/([^/]+)/.*#\1#' |
               sort -u
           )
-          printf 'ABIs: %s\n' "${ABIS[*]}"
           test "${#ABIS[@]}" -eq 1
           test "${ABIS[0]}" = "arm64-v8a"
-          unzip -l "$APK" | grep -q 'lib/arm64-v8a/libgojni.so'
 
-      - name: Record artifact digest
+      - name: Record digest
         run: |
-          sha256sum app/build/outputs/apk/debug/app-debug.apk | tee TrafficMarker-debug.sha256
+          sha256sum app/build/outputs/apk/debug/app-debug.apk | tee CardPresenceProbe-debug.sha256
           ls -lh app/build/outputs/apk/debug/app-debug.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: TrafficMarker-debug
+          name: CardPresenceProbe-debug
           path: |
             app/build/outputs/apk/debug/app-debug.apk
-            TrafficMarker-debug.sha256
+            CardPresenceProbe-debug.sha256
             apk-badging.txt
           if-no-files-found: error

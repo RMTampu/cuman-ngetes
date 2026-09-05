@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.TrafficMarker" parent="Theme.AppCompat.DayNight.NoActionBar">
+    <style name="Theme.CardProbe" parent="Theme.AppCompat.DayNight.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:navigationBarColor">@color/tm_bg</item>
-        <item name="android:statusBarColor">@color/tm_bg</item>
-        <item name="android:windowBackground">@color/tm_bg</item>
-        <item name="colorAccent">@color/tm_accent</item>
+        <item name="android:navigationBarColor">@color/cp_bg</item>
+        <item name="android:statusBarColor">@color/cp_bg</item>
+        <item name="android:windowBackground">@color/cp_bg</item>
+        <item name="colorAccent">@color/cp_accent</item>
     </style>
 </resources>

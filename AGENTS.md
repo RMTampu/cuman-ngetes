@@ -2,22 +2,21 @@
 
 Sebelum mengubah repository ini, baca file ini penuh.
 
-## Batas dasar
-- Target utama: Android 11 (API 30), arm64-compatible.
-- Capture hanya metadata trafik; jangan menambahkan dekripsi TLS/HTTPS tersembunyi.
-- Jangan memblokir koneksi target secara sengaja; forwarding harus tetap aktif.
-- Marker utama adalah momen/window trafik dengan judul, bukan satu chunk TCP.
-- Judul marker yang sama menambah sampel ke marker yang sama.
-- Jangan memicu notifikasi deteksi otomatis per chunk.
-- LOAD 20 hanya berjalan setelah tindakan manual pengguna dan hasilnya tampil di panel bubble.
-- LOAD 20 harus diberi status ESTIMATED bila yang dihitung hanya burst TLS; jangan mengklaim urutan hasil server sebagai fakta.
-- Recorder metadata aktif bersama capture dan harus dapat diekspor ke Download/TrafficMarkerRecorder.
-- Step Recorder harus memakai ground-truth manual: MULAI STEP lalu HASIL + LABEL.
-- Label hasil aktual harus dipisahkan dari prediksi.
-- Arrival Validator boleh menyatakan VALIDATED hanya untuk dataset uji yang memenuhi precision=100%, recall=100%, tanpa FP/FN, dan cukup sampel.
-- Metadata TLS tidak boleh diberi status EXACT. EXACT hanya untuk identifier deterministik/plaintext/API yang sah.
-- Save/Load marker harus mempertahankan judul dan seluruh sampel momen.
-- Tindakan yang menghapus semua penanda atau mereset dataset harus berasal dari tindakan pengguna.
+## Tujuan
+- Aplikasi aktif adalah Card Presence Probe.
+- Target utama Android 11 (API 30), arm64-v8a.
+- Tujuan hanya menguji apakah ada indikasi metadata jaringan yang datang lebih awal sebelum reveal kartu pada aplikasi demo/lingkungan yang diizinkan.
+- Jangan membuat predictor kartu, pembaca hole-card lawan, atau alat untuk memperoleh isi kartu tersembunyi.
+
+## Batas teknis
+- Capture hanya metadata endpoint, arah, waktu, dan jumlah byte.
+- Jangan menambahkan dekripsi TLS/HTTPS, bypass certificate pinning, MITM tersembunyi, pembacaan credential, atau pembacaan payload terlindungi.
+- Forwarding target harus tetap aktif; jangan memblokir koneksi target secara sengaja.
+- Tombol DEAL/KARTU TERTUTUP dan REVEAL adalah ground-truth manual.
+- PREFETCH_CANDIDATE hanya berarti pola timing konsisten dengan data yang mungkin sudah tersedia lebih awal. Status itu bukan bukti nilai kartu tersembunyi sudah diketahui client.
+- REVEAL_REQUIRES_NETWORK berarti ada trafik inbound signifikan yang konsisten di sekitar reveal.
+- INCONCLUSIVE berarti metadata tidak cukup membedakan kedua kemungkinan.
+- Dataset trial harus dipertahankan lintas restart aplikasi sampai pengguna memilih RESET DATASET.
 
 ## Build
 - Gunakan GitHub Actions untuk menghasilkan APK uji.
