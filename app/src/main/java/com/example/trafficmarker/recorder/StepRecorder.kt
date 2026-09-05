@@ -46,6 +46,15 @@ object StepRecorder {
         return record
     }
 
+    @Synchronized
+    fun cancelActiveStep(): Int? {
+        val index = activeStep ?: return null
+        activeStep = null
+        activeStartedAt = 0L
+        if (nextIndex == index + 1) nextIndex = index
+        return index
+    }
+
     fun currentStepIndex(): Int? = activeStep
     fun all(): List<StepRecord> = steps.toList()
     fun count(): Int = steps.size
