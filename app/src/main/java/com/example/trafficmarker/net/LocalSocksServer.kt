@@ -1,5 +1,6 @@
 package com.example.trafficmarker.net
 
+import com.example.trafficmarker.diagnostic.DiagnosticStore
 import com.example.trafficmarker.model.Direction
 import com.example.trafficmarker.model.TrafficEvent
 import java.io.BufferedInputStream
@@ -26,10 +27,12 @@ object LocalSocksServer {
             reuseAddress = true
             bind(InetSocketAddress(InetAddress.getByName("127.0.0.1"), PORT))
         }
+        DiagnosticStore.setSocksListening(true)
         pool!!.execute {
             while (running.get()) {
                 try {
                     val socket = server?.accept() ?: break
+                    DiagnosticStore.socksAccepted(socket.remoteSocketAddress?.toString())
                     pool?.execute { handleClient(socket) }
                 } catch (_: SocketException) {
                     break
@@ -44,6 +47,7 @@ object LocalSocksServer {
         server = null
         pool?.shutdownNow()
         pool = null
+        DiagnosticStore.setSocksListening(false)
     }
 
     private fun handleClient(client: Socket) {
@@ -77,11 +81,13 @@ object LocalSocksServer {
                 tcpNoDelay = true
                 connect(InetSocketAddress(host, port), 12_000)
             }
-        } catch (_: Throwable) {
+        } catch (t: Throwable) {
+            DiagnosticStore.tcpConnect(host, port, false, t.message)
             reply(clientOut, 0x05, null, 0)
             return
         }
 
+        DiagnosticStore.tcpConnect(host, port, true)
         remote.use { r ->
             reply(clientOut, 0x00, r.localAddress, r.localPort)
             TrafficBus.emit(TrafficEvent(host = host, port = port, direction = Direction.CONNECT, sizeBytes = 0))
@@ -106,6 +112,7 @@ object LocalSocksServer {
                 if (n <= 0) break
                 output.write(buffer, 0, n)
                 output.flush()
+                DiagnosticStore.tcpBytes(direction == Direction.OUT, host, port, n)
                 TrafficBus.emit(TrafficEvent(host = host, port = port, direction = direction, sizeBytes = n))
             }
         } catch (_: Throwable) { }
@@ -134,6 +141,7 @@ object LocalSocksServer {
                         val addr = InetAddress.getByName(host)
                         udp.send(DatagramPacket(packet.data, payloadOffset, payloadLen, addr, port))
                         remoteToHost["${addr.hostAddress}:$port"] = host to port
+                        DiagnosticStore.udpPacket(true, host, port, payloadLen)
                         TrafficBus.emit(TrafficEvent(host = host, port = port, direction = Direction.UDP_OUT, sizeBytes = payloadLen))
                     } else {
                         val client = clientEndpoint ?: continue
@@ -141,6 +149,7 @@ object LocalSocksServer {
                         val hp = remoteToHost[key] ?: (packet.address.hostAddress to packet.port)
                         val wrapped = buildUdpResponse(packet.address, packet.port, packet.data, packet.offset, packet.length)
                         udp.send(DatagramPacket(wrapped, wrapped.size, client))
+                        DiagnosticStore.udpPacket(false, hp.first, hp.second, packet.length)
                         TrafficBus.emit(TrafficEvent(host = hp.first, port = hp.second, direction = Direction.UDP_IN, sizeBytes = packet.length))
                     }
                 }
