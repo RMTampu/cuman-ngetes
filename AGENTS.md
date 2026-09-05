@@ -11,8 +11,13 @@ Sebelum mengubah repository ini, baca file ini penuh.
 - Jangan memicu notifikasi deteksi otomatis per chunk.
 - LOAD 20 hanya berjalan setelah tindakan manual pengguna dan hasilnya tampil di panel bubble.
 - LOAD 20 harus diberi status ESTIMATED bila yang dihitung hanya burst TLS; jangan mengklaim urutan hasil server sebagai fakta.
+- Recorder metadata aktif bersama capture dan harus dapat diekspor ke Download/TrafficMarkerRecorder.
+- Step Recorder harus memakai ground-truth manual: MULAI STEP lalu HASIL + LABEL.
+- Label hasil aktual harus dipisahkan dari prediksi.
+- Arrival Validator boleh menyatakan VALIDATED hanya untuk dataset uji yang memenuhi precision=100%, recall=100%, tanpa FP/FN, dan cukup sampel.
+- Metadata TLS tidak boleh diberi status EXACT. EXACT hanya untuk identifier deterministik/plaintext/API yang sah.
 - Save/Load marker harus mempertahankan judul dan seluruh sampel momen.
-- Tindakan yang menghapus semua penanda harus berasal dari tindakan pengguna.
+- Tindakan yang menghapus semua penanda atau mereset dataset harus berasal dari tindakan pengguna.
 
 ## Build
 - Gunakan GitHub Actions untuk menghasilkan APK uji.
