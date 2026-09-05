@@ -3,6 +3,7 @@ package com.example.trafficmarker.net
 import com.example.trafficmarker.diagnostic.DiagnosticStore
 import com.example.trafficmarker.engine.ManualLookaheadStore
 import com.example.trafficmarker.model.TrafficEvent
+import com.example.trafficmarker.recorder.TrafficRecorder
 import com.example.trafficmarker.store.SessionStore
 import java.util.concurrent.CopyOnWriteArraySet
 
@@ -16,6 +17,7 @@ object TrafficBus {
     fun emit(raw: TrafficEvent) {
         DiagnosticStore.busEvent(raw.host, raw.port, raw.direction.name, raw.sizeBytes)
         SessionStore.add(raw)
+        TrafficRecorder.onEvent(raw)
         ManualLookaheadStore.onEvent(raw)
         listeners.forEach { it.onEvent(raw) }
     }
