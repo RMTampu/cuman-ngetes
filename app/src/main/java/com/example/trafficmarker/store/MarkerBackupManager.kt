@@ -6,7 +6,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
-import com.example.trafficmarker.model.Direction
 import com.example.trafficmarker.model.Marker
 import org.json.JSONArray
 import org.json.JSONObject
@@ -17,7 +16,7 @@ import java.util.Locale
 object MarkerBackupManager {
     const val SAVE_FOLDER = "TrafficMarkerSave"
     private const val FORMAT = "traffic-marker-save"
-    private const val FORMAT_VERSION = 1
+    private const val FORMAT_VERSION = 2
 
     data class SaveResult(
         val uri: Uri,
@@ -43,14 +42,7 @@ object MarkerBackupManager {
             put("markerCount", markers.size)
             put("markers", JSONArray().apply {
                 markers.forEach { marker ->
-                    put(JSONObject().apply {
-                        put("id", marker.id)
-                        put("host", marker.host)
-                        put("port", marker.port)
-                        put("direction", marker.direction.name)
-                        put("centerSize", marker.centerSize)
-                        put("tolerancePercent", marker.tolerancePercent)
-                    })
+                    put(MarkerStore.markerToJson(marker))
                 }
             })
         }
@@ -100,30 +92,15 @@ object MarkerBackupManager {
         require(root.optString("format") == FORMAT) {
             "File bukan save Traffic Marker"
         }
-        require(root.optInt("formatVersion", -1) == FORMAT_VERSION) {
+        val version = root.optInt("formatVersion", 1)
+        require(version in 1..FORMAT_VERSION) {
             "Versi format save tidak didukung"
         }
 
         val array = root.optJSONArray("markers") ?: JSONArray()
         val imported = ArrayList<Marker>()
         for (i in 0 until array.length()) {
-            val o = array.getJSONObject(i)
-            val host = o.getString("host")
-            val port = o.getInt("port")
-            val direction = Direction.valueOf(o.getString("direction"))
-            val centerSize = o.getInt("centerSize")
-            val tolerance = o.optInt("tolerancePercent", 25)
-            val id = o.optString("id").ifBlank {
-                java.util.UUID.randomUUID().toString()
-            }
-            imported += Marker(
-                id = id,
-                host = host,
-                port = port,
-                direction = direction,
-                centerSize = centerSize,
-                tolerancePercent = tolerance
-            )
+            imported += MarkerStore.markerFromJson(array.getJSONObject(i))
         }
 
         val added = MarkerStore.importUnique(imported)
