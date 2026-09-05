@@ -1,16 +1,22 @@
 package com.example.trafficmarker.ui
 
 import android.content.Intent
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.graphics.Color
 import android.net.ConnectivityManager
 import android.net.Uri
+import android.net.NetworkCapabilities
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.view.Gravity
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import com.example.trafficmarker.R
+import com.example.trafficmarker.diagnostic.DiagnosticStore
 import com.example.trafficmarker.model.TrafficEvent
 import com.example.trafficmarker.net.LocalSocksServer
 import com.example.trafficmarker.net.TrafficBus
@@ -35,8 +41,19 @@ class MainActivity : AppCompatActivity() {
     private lateinit var appSpinner: Spinner
     private lateinit var status: TextView
     private lateinit var markerInfo: TextView
+    private lateinit var diagnosticText: TextView
+    private val diagnosticHandler = Handler(Looper.getMainLooper())
     private var selectedIndex = -1
     private var captureRequested = false
+
+    private val diagnosticTick = object : Runnable {
+        override fun run() {
+            if (::diagnosticText.isInitialized) {
+                diagnosticText.text = DiagnosticStore.snapshot(isVpnTransportActive())
+            }
+            diagnosticHandler.postDelayed(this, 1000L)
+        }
+    }
 
     private val listener = TrafficBus.Listener { event ->
         runOnUiThread {
@@ -52,6 +69,17 @@ class MainActivity : AppCompatActivity() {
         loadApps()
         refreshMarkerInfo()
         TrafficBus.add(listener)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        diagnosticHandler.removeCallbacks(diagnosticTick)
+        diagnosticHandler.post(diagnosticTick)
+    }
+
+    override fun onStop() {
+        diagnosticHandler.removeCallbacks(diagnosticTick)
+        super.onStop()
     }
 
     override fun onResume() {
@@ -123,6 +151,32 @@ class MainActivity : AppCompatActivity() {
             setPadding(0, 12, 0, 12)
         }
         root.addView(status)
+
+        val diagHeader = title("PENGECEKAN DATA", 15f).apply {
+            setTextColor(Color.rgb(56, 217, 169))
+            setPadding(0, 8, 0, 4)
+        }
+        root.addView(diagHeader)
+
+        diagnosticText = title("Belum ada sesi diagnostik.", 11f).apply {
+            setTextColor(Color.rgb(210, 218, 226))
+            setPadding(12, 10, 12, 10)
+            setBackgroundColor(Color.rgb(24, 29, 36))
+        }
+        root.addView(diagnosticText, LinearLayout.LayoutParams(-1, 360))
+
+        val diagActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val refreshDiag = Button(this).apply {
+            text = "Refresh"
+            setOnClickListener { diagnosticText.text = DiagnosticStore.snapshot(isVpnTransportActive()) }
+        }
+        val copyDiag = Button(this).apply {
+            text = "Salin Diagnostik"
+            setOnClickListener { copyDiagnostics() }
+        }
+        diagActions.addView(refreshDiag, LinearLayout.LayoutParams(0, -2, 1f))
+        diagActions.addView(copyDiag, LinearLayout.LayoutParams(0, -2, 1f))
+        root.addView(diagActions)
 
         val markRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -202,6 +256,22 @@ class MainActivity : AppCompatActivity() {
         startActivity(launch)
     }
 
+    private fun isVpnTransportActive(): Boolean {
+        return runCatching {
+            val cm = getSystemService(ConnectivityManager::class.java)
+            cm.allNetworks.any { network ->
+                cm.getNetworkCapabilities(network)?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
+            }
+        }.getOrDefault(false)
+    }
+
+    private fun copyDiagnostics() {
+        val text = DiagnosticStore.snapshot(isVpnTransportActive())
+        val clipboard = getSystemService(ClipboardManager::class.java)
+        clipboard.setPrimaryClip(ClipData.newPlainText("Traffic Marker Diagnostics", text))
+        Toast.makeText(this, "Diagnostik disalin", Toast.LENGTH_SHORT).show()
+    }
+
     private fun currentIpv4Dns(): java.net.InetAddress? {
         return runCatching {
             val cm = getSystemService(ConnectivityManager::class.java)
@@ -216,8 +286,10 @@ class MainActivity : AppCompatActivity() {
         val item = appSpinner.selectedItem as? AppItem ?: return
         try {
             captureRequested = true
+            val dns = currentIpv4Dns()
+            DiagnosticStore.reset(item.packageName, dns?.hostAddress)
             SessionStore.start(clearPrevious = true)
-            UdpGatewayServer.start(currentIpv4Dns())
+            UdpGatewayServer.start(dns)
             LocalSocksServer.start()
             SocksProxy.configConnect("127.0.0.1", LocalSocksServer.PORT)
             SocksProxy.setProxyModel(ProxyModel.WHITE_LIST)
@@ -228,6 +300,7 @@ class MainActivity : AppCompatActivity() {
                 "Traffic Marker",
                 "Memantau metadata trafik " + item.label
             )
+            DiagnosticStore.setVpnRequested(true)
             SocksProxy.start(this)
             if (Settings.canDrawOverlays(this)) MarkerBubbleService.start(this)
             status.text = "Status: meminta izin VPN… • " + item.label + " • Session aktif"
@@ -243,6 +316,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun stopCapture() {
         captureRequested = false
+        DiagnosticStore.setVpnRequested(false)
         SessionStore.stop()
         MarkerBubbleService.stop(this)
         runCatching { SocksProxy.stop() }
