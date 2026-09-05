@@ -79,16 +79,41 @@ object TrafficRecorder {
 
         try {
             resolver.openOutputStream(uri, "w")!!.bufferedWriter(Charsets.UTF_8).use { writer ->
+                writer.append(
+                    JSONObject().apply {
+                        put("type", "meta")
+                        put("format", "traffic-marker-recorder")
+                        put("formatVersion", 1)
+                        put("exportedAtMs", System.currentTimeMillis())
+                    }.toString()
+                )
+                writer.newLine()
+
                 snapshot.forEach { r ->
                     val e = r.event
                     writer.append(
                         JSONObject().apply {
+                            put("type", "event")
                             put("timeMs", e.timeMs)
                             put("step", r.stepIndex ?: JSONObject.NULL)
                             put("host", e.host)
                             put("port", e.port)
                             put("direction", e.direction.name)
                             put("sizeBytes", e.sizeBytes)
+                        }.toString()
+                    )
+                    writer.newLine()
+                }
+
+                StepRecorder.all().forEach { step ->
+                    writer.append(
+                        JSONObject().apply {
+                            put("type", "step")
+                            put("index", step.index)
+                            put("startedAtMs", step.startedAtMs)
+                            put("resultAtMs", step.resultAtMs)
+                            put("label", step.label)
+                            put("eventCount", step.events.size)
                         }.toString()
                     )
                     writer.newLine()
