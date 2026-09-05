@@ -120,7 +120,7 @@ class MainActivity : AppCompatActivity() {
             LocalSocksServer.start()
             SocksProxy.configConnect("127.0.0.1", LocalSocksServer.PORT)
             SocksProxy.setProxyModel(ProxyModel.WHITE_LIST)
-            SocksProxy.setAppList(listOf(item.packageName))
+            SocksProxy.setAppList(mutableListOf(item.packageName))
             SocksProxy.setDnsService("1.1.1.1")
             SocksProxy.notificationTitle(
                 R.drawable.ic_app,
