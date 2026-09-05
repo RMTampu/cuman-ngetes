@@ -2,6 +2,7 @@ package com.example.trafficmarker.ui
 
 import android.content.Intent
 import android.graphics.Color
+import android.net.ConnectivityManager
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
@@ -115,10 +116,20 @@ class MainActivity : AppCompatActivity() {
         appSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, apps)
     }
 
+    private fun currentIpv4Dns(): java.net.InetAddress? {
+        return runCatching {
+            val cm = getSystemService(ConnectivityManager::class.java)
+            val network = cm.activeNetwork ?: return@runCatching null
+            cm.getLinkProperties(network)
+                ?.dnsServers
+                ?.firstOrNull { it.address.size == 4 }
+        }.getOrNull()
+    }
+
     private fun startCapture() {
         val item = appSpinner.selectedItem as? AppItem ?: return
         try {
-            UdpGatewayServer.start()
+            UdpGatewayServer.start(currentIpv4Dns())
             LocalSocksServer.start()
             SocksProxy.configConnect("127.0.0.1", LocalSocksServer.PORT)
             SocksProxy.setProxyModel(ProxyModel.WHITE_LIST)
