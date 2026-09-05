@@ -28,6 +28,7 @@ required = [
     "app/src/main/java/com/example/trafficmarker/engine/LookaheadEngine.kt",
     "app/src/main/java/com/example/trafficmarker/engine/LookaheadProvider.kt",
     "app/src/main/java/com/example/trafficmarker/overlay/MarkerBubbleService.kt",
+    "app/src/main/java/com/example/trafficmarker/overlay/QuickStepOverlayController.kt",
     "app/src/main/java/com/example/trafficmarker/recorder/TrafficRecorder.kt",
     "app/src/main/java/com/example/trafficmarker/recorder/StepRecorder.kt",
     "app/src/main/java/com/example/trafficmarker/engine/ArrivalValidator.kt",
@@ -176,6 +177,9 @@ for token in [
     "isLandscape()",
     "collapsibleHeader",
     "VALIDASI SELESAI",
+    "QuickStepOverlayController",
+    "beginMarkerSelection",
+    "focusStepResults",
 ]:
     if token not in bubble:
         errors.append(f"bubble component missing: {token}")
@@ -204,7 +208,7 @@ for token in ["TrafficMarkerRecorder", "MAX_EVENTS = 10000", "recentText", "save
         errors.append(f"traffic recorder missing: {token}")
 
 step_recorder = (root / "app/src/main/java/com/example/trafficmarker/recorder/StepRecorder.kt").read_text(encoding="utf-8")
-for token in ["startStep", "finishStep", "ground", "StepRecord"]:
+for token in ["startStep", "finishStep", "cancelActiveStep", "ground", "StepRecord"]:
     if token == "ground":
         continue
     if token not in step_recorder:
@@ -214,6 +218,26 @@ arrival = (root / "app/src/main/java/com/example/trafficmarker/engine/ArrivalVal
 for token in ["NO_DATA", "LEAD_CANDIDATE", "VALIDATED", "EXACT", "precision", "recall", "MAX_LEAD = 20"]:
     if token not in arrival:
         errors.append(f"arrival validator missing: {token}")
+
+quick = (root / "app/src/main/java/com/example/trafficmarker/overlay/QuickStepOverlayController.kt").read_text(encoding="utf-8")
+for token in [
+    "STEP MODE",
+    "RESULT_LABELS",
+    "NORMAL",
+    "BIGWIN",
+    "SUPERWIN",
+    "MEGAWIN",
+    "EPIC WIN",
+    "ULTIMATE WIN",
+    "SCATTER",
+    "turnAutoOn",
+    "turnAutoOff",
+    "StepRecorder.finishStep",
+    "StepRecorder.startStep",
+    "makeDraggable",
+]:
+    if token not in quick:
+        errors.append(f"quick step overlay missing: {token}")
 
 if ".overlay.MarkerBubbleService" not in manifest:
     errors.append("bubble service missing from manifest")
@@ -225,4 +249,4 @@ if errors:
     sys.exit(1)
 
 print("STATIC_VERIFY: PASS")
-print("targetSdk=30; recorder; step ground truth; arrival validator; manual LOAD 20; no per-chunk alerts; marker save/load v2")
+print("targetSdk=30; recorder; quick draggable step/result windows; auto next step; preset marker labels; arrival validator")
