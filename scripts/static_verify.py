@@ -39,6 +39,7 @@ checks = {
     "targetSdk Android 11": r"targetSdk\s*=\s*30",
     "socks dependency pinned": r'com\.ooimi\.library:socks:1\.1\.1',
     "application id": r'applicationId\s*=\s*"com\.example\.trafficmarker"',
+    "arm64 ABI filter": r'abiFilters\s*\+=\s*listOf\("arm64-v8a"\)',
 }
 for name, pattern in checks.items():
     if not re.search(pattern, app_gradle):
