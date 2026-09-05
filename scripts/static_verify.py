@@ -21,6 +21,7 @@ required = [
     "app/src/main/java/com/example/trafficmarker/store/SessionStore.kt",
     "app/src/main/java/com/example/trafficmarker/engine/QuickMarkerEngine.kt",
     "app/src/main/java/com/example/trafficmarker/engine/LookaheadEngine.kt",
+    "app/src/main/java/com/example/trafficmarker/engine/LookaheadProvider.kt",
     "app/src/main/java/com/example/trafficmarker/overlay/MarkerBubbleService.kt",
     "app/src/main/java/com/example/trafficmarker/store/MarkerStore.kt",
     "app/src/main/java/com/example/trafficmarker/store/AlertManager.kt",
@@ -83,6 +84,11 @@ lookahead = (root / "app/src/main/java/com/example/trafficmarker/engine/Lookahea
 for token in ["EXACT", "ESTIMATED", "UNAVAILABLE", "relativeStep = index + 1"]:
     if token not in lookahead:
         errors.append(f"lookahead engine missing: {token}")
+
+provider = (root / "app/src/main/java/com/example/trafficmarker/engine/LookaheadProvider.kt").read_text(encoding="utf-8")
+for token in ["MIN_WINDOW = 100", "MAX_WINDOW = 300", "coerceIn(MIN_WINDOW, MAX_WINDOW)", "LookaheadProvider"]:
+    if token not in provider:
+        errors.append(f"lookahead provider contract missing: {token}")
 
 if ".overlay.MarkerBubbleService" not in manifest:
     errors.append("bubble service missing from manifest")
