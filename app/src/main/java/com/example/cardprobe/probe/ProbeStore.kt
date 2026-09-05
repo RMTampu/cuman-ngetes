@@ -231,7 +231,7 @@ object ProbeStore {
         if (endpoint.isBlank()) "-" else endpoint + " " + bytes + "B"
 
     private fun csv(value: String): String =
-        """ + value.replace(""", """") + """
+        "\"" + value.replace("\"", "\"\"") + "\""
 
     @Synchronized
     private fun persist() {
