@@ -25,6 +25,7 @@ required = [
     "app/src/main/java/com/example/trafficmarker/engine/LookaheadProvider.kt",
     "app/src/main/java/com/example/trafficmarker/overlay/MarkerBubbleService.kt",
     "app/src/main/java/com/example/trafficmarker/store/MarkerStore.kt",
+    "app/src/main/java/com/example/trafficmarker/store/MarkerBackupManager.kt",
     "app/src/main/java/com/example/trafficmarker/store/AlertManager.kt",
 ]
 for rel in required:
@@ -54,7 +55,7 @@ for name, pattern in checks.items():
         errors.append(f"build config check failed: {name}")
 
 main = (root / "app/src/main/java/com/example/trafficmarker/ui/MainActivity.kt").read_text(encoding="utf-8")
-for token in ["SocksProxy.setAppList(mutableListOf(item.packageName))", "SocksProxy.setProxyModel(ProxyModel.WHITE_LIST)", "SocksProxy.start(this)", "LocalSocksServer.start()", "UdpGatewayServer.start(dns)", "SessionStore.start(clearPrevious = true)", "MarkerBubbleService.start(this)", "DiagnosticStore.reset(item.packageName", "PENGECEKAN DATA", "copyDiagnostics"]:
+for token in ["SocksProxy.setAppList(mutableListOf(item.packageName))", "SocksProxy.setProxyModel(ProxyModel.WHITE_LIST)", "SocksProxy.start(this)", "LocalSocksServer.start()", "UdpGatewayServer.start(dns)", "SessionStore.start(clearPrevious = true)", "MarkerBubbleService.start(this)", "DiagnosticStore.reset(item.packageName", "PENGECEKAN DATA", "copyDiagnostics", "Simpan Penanda", "Load Penanda", "saveMarkersToDownload", "openMarkerSavePicker"]:
     if token not in main:
         errors.append(f"capture route missing: {token}")
 
@@ -106,6 +107,14 @@ traffic_bus = (root / "app/src/main/java/com/example/trafficmarker/net/TrafficBu
 if "DiagnosticStore.busEvent" not in traffic_bus:
     errors.append("TrafficBus diagnostic instrumentation missing")
 
+backup = (root / "app/src/main/java/com/example/trafficmarker/store/MarkerBackupManager.kt").read_text(encoding="utf-8")
+for token in ["TrafficMarkerSave", "MediaStore.Downloads.RELATIVE_PATH", "traffic-marker-save", "loadFromUri", "MarkerStore.importUnique"]:
+    if token not in backup:
+        errors.append(f"marker backup component missing: {token}")
+
+if "fun importUnique" not in store:
+    errors.append("marker safe-import missing")
+
 if ".overlay.MarkerBubbleService" not in manifest:
     errors.append("bubble service missing from manifest")
 
@@ -116,4 +125,4 @@ if errors:
     sys.exit(1)
 
 print("STATIC_VERIFY: PASS")
-print("targetSdk=30; metadata-only; diagnostics instrument VPN/SOCKS/TCP/UDP/TrafficBus; live bubble; lookahead engine present")
+print("targetSdk=30; diagnostics; live bubble; marker save/load in Download/TrafficMarkerSave; lookahead engine present")
