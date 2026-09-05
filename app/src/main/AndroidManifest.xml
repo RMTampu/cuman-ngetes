@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
@@ -13,16 +11,16 @@
     </queries>
 
     <application
-        android:name=".CardProbeApp"
+        android:name=".PokerEdgeApp"
         android:allowBackup="true"
         android:icon="@drawable/ic_app"
-        android:label="Card Presence Probe"
+        android:label="Poker Edge Companion"
         android:roundIcon="@drawable/ic_app"
         android:supportsRtl="true"
-        android:theme="@style/Theme.CardProbe">
+        android:theme="@style/Theme.PokerEdge">
 
         <service
-            android:name=".overlay.ProbeBubbleService"
+            android:name=".overlay.PokerOverlayService"
             android:exported="false" />
 
         <activity

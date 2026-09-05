@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "TrafficMarker"
+rootProject.name = "PokerEdgeCompanion"
 include(":app")

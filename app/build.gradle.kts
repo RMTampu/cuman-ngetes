@@ -4,18 +4,15 @@ plugins {
 }
 
 android {
-    namespace = "com.example.cardprobe"
+    namespace = "com.example.pokeredge"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.cardprobe"
+        applicationId = "com.example.pokeredge"
         minSdk = 23
         targetSdk = 30
-        versionCode = 2
-        versionName = "0.1.1"
-        ndk {
-            abiFilters += listOf("arm64-v8a")
-        }
+        versionCode = 1
+        versionName = "0.2.0"
     }
 
     buildTypes {
@@ -35,6 +32,5 @@ android {
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
-    implementation("com.ooimi.library:socks:1.1.1")
     testImplementation("junit:junit:4.13.2")
 }
