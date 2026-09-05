@@ -40,6 +40,10 @@ object SessionStore {
     }
 
     @Synchronized
+    fun range(fromMs: Long, toMs: Long): List<TrafficEvent> =
+        events.filter { it.timeMs in fromMs..toMs }
+
+    @Synchronized
     fun size(): Int = events.size
 
     fun startedAt(): Long = startedAt
