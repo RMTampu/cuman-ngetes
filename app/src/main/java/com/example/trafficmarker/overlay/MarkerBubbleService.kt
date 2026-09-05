@@ -311,7 +311,7 @@ class MarkerBubbleService : Service() {
             hint = "Contoh: Scatter 5x"
             setHintTextColor(Color.GRAY)
             setTextColor(Color.WHITE)
-            singleLine = true
+            isSingleLine = true
         }
 
         val info = TextView(this).apply {
