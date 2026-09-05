@@ -13,6 +13,7 @@ required = [
     "build.gradle.kts",
     "app/build.gradle.kts",
     "app/src/main/AndroidManifest.xml",
+    "app/src/main/java/com/example/trafficmarker/TrafficMarkerApp.kt",
     "app/src/main/java/com/example/trafficmarker/ui/MainActivity.kt",
     "app/src/main/java/com/example/trafficmarker/diagnostic/DiagnosticStore.kt",
     "app/src/main/java/com/example/trafficmarker/net/LocalSocksServer.kt",
@@ -20,13 +21,13 @@ required = [
     "app/src/main/java/com/example/trafficmarker/net/UdpGatewayServer.kt",
     "app/src/main/java/com/example/trafficmarker/net/UdpgwProtocol.kt",
     "app/src/main/java/com/example/trafficmarker/store/SessionStore.kt",
-    "app/src/main/java/com/example/trafficmarker/engine/QuickMarkerEngine.kt",
+    "app/src/main/java/com/example/trafficmarker/store/MarkerStore.kt",
+    "app/src/main/java/com/example/trafficmarker/store/MarkerBackupManager.kt",
+    "app/src/main/java/com/example/trafficmarker/engine/MomentFingerprintEngine.kt",
+    "app/src/main/java/com/example/trafficmarker/engine/ManualLookaheadStore.kt",
     "app/src/main/java/com/example/trafficmarker/engine/LookaheadEngine.kt",
     "app/src/main/java/com/example/trafficmarker/engine/LookaheadProvider.kt",
     "app/src/main/java/com/example/trafficmarker/overlay/MarkerBubbleService.kt",
-    "app/src/main/java/com/example/trafficmarker/store/MarkerStore.kt",
-    "app/src/main/java/com/example/trafficmarker/store/MarkerBackupManager.kt",
-    "app/src/main/java/com/example/trafficmarker/store/AlertManager.kt",
 ]
 for rel in required:
     if not (root / rel).is_file():
@@ -39,7 +40,11 @@ for xml in root.glob("app/src/main/**/*.xml"):
         errors.append(f"invalid XML {xml.relative_to(root)}: {e}")
 
 manifest = (root / "app/src/main/AndroidManifest.xml").read_text(encoding="utf-8")
-for permission in ["android.permission.INTERNET", "android.permission.FOREGROUND_SERVICE", "android.permission.SYSTEM_ALERT_WINDOW"]:
+for permission in [
+    "android.permission.INTERNET",
+    "android.permission.FOREGROUND_SERVICE",
+    "android.permission.SYSTEM_ALERT_WINDOW",
+]:
     if permission not in manifest:
         errors.append(f"manifest permission missing: {permission}")
 
@@ -55,65 +60,125 @@ for name, pattern in checks.items():
         errors.append(f"build config check failed: {name}")
 
 main = (root / "app/src/main/java/com/example/trafficmarker/ui/MainActivity.kt").read_text(encoding="utf-8")
-for token in ["SocksProxy.setAppList(mutableListOf(item.packageName))", "SocksProxy.setProxyModel(ProxyModel.WHITE_LIST)", "SocksProxy.start(this)", "LocalSocksServer.start()", "UdpGatewayServer.start(dns)", "SessionStore.start(clearPrevious = true)", "MarkerBubbleService.start(this)", "DiagnosticStore.reset(item.packageName", "PENGECEKAN DATA", "copyDiagnostics", "Simpan Penanda", "Load Penanda", "saveMarkersToDownload", "openMarkerSavePicker"]:
+for token in [
+    "SocksProxy.setAppList(mutableListOf(item.packageName))",
+    "SocksProxy.setProxyModel(ProxyModel.WHITE_LIST)",
+    "SocksProxy.start(this)",
+    "LocalSocksServer.start()",
+    "UdpGatewayServer.start(dns)",
+    "SessionStore.start(clearPrevious = true)",
+    "MarkerBubbleService.start(this)",
+    "DiagnosticStore.reset(item.packageName",
+    "Simpan Penanda",
+    "Load Penanda",
+    "saveMarkersToDownload",
+    "openMarkerSavePicker",
+    "Tandai via Bubble",
+]:
     if token not in main:
-        errors.append(f"capture route missing: {token}")
+        errors.append(f"main component missing: {token}")
 
 socks = (root / "app/src/main/java/com/example/trafficmarker/net/LocalSocksServer.kt").read_text(encoding="utf-8")
-for token in ["handleConnect", "handleUdpAssociate", "Direction.OUT", "Direction.IN", "Direction.UDP_OUT", "Direction.UDP_IN"]:
+for token in [
+    "handleConnect",
+    "Direction.OUT",
+    "Direction.IN",
+    "DiagnosticStore.socksAccepted",
+    "DiagnosticStore.tcpConnect",
+]:
     if token not in socks:
-        errors.append(f"forwarding component missing: {token}")
-
-store = (root / "app/src/main/java/com/example/trafficmarker/store/MarkerStore.kt").read_text(encoding="utf-8")
-for token in ["SharedPreferences", "findMatch", "5000L"]:
-    if token not in store:
-        errors.append(f"marker persistence/debounce missing: {token}")
-
-if "SSL" in socks or "X509" in socks or "TrustManager" in socks:
+        errors.append(f"SOCKS/TCP component missing: {token}")
+if any(token in socks for token in ["TrustManager", "X509", "SSLContext"]):
     errors.append("unexpected TLS interception primitive detected")
 
 udpgw = (root / "app/src/main/java/com/example/trafficmarker/net/UdpGatewayServer.kt").read_text(encoding="utf-8")
-for token in ["const val PORT = 7300", "127.0.0.1", "UdpgwProtocol.readFrame", "DatagramSocket", "Direction.UDP_OUT", "Direction.UDP_IN"]:
+for token in [
+    'const val PORT = 7300',
+    '127.0.0.1',
+    'UdpgwProtocol.readFrame',
+    'DiagnosticStore.udpGatewayAccepted',
+    'DiagnosticStore.udpPacket',
+]:
     if token not in udpgw:
-        errors.append(f"udpgw forwarding component missing: {token}")
+        errors.append(f"UDP gateway component missing: {token}")
 
-bubble = (root / "app/src/main/java/com/example/trafficmarker/overlay/MarkerBubbleService.kt").read_text(encoding="utf-8")
-for token in ["TYPE_APPLICATION_OVERLAY", "TANDAI SEKARANG", "QuickMarkerEngine.choose", "SessionStore.recent(2000)", "PENGECEKAN DATA", "DiagnosticStore.snapshot"]:
-    if token not in bubble:
-        errors.append(f"bubble component missing: {token}")
-
-lookahead = (root / "app/src/main/java/com/example/trafficmarker/engine/LookaheadEngine.kt").read_text(encoding="utf-8")
-for token in ["EXACT", "ESTIMATED", "UNAVAILABLE", "relativeStep = index + 1"]:
-    if token not in lookahead:
-        errors.append(f"lookahead engine missing: {token}")
-
-provider = (root / "app/src/main/java/com/example/trafficmarker/engine/LookaheadProvider.kt").read_text(encoding="utf-8")
-for token in ["MIN_WINDOW = 100", "MAX_WINDOW = 300", "coerceIn(MIN_WINDOW, MAX_WINDOW)", "LookaheadProvider"]:
-    if token not in provider:
-        errors.append(f"lookahead provider contract missing: {token}")
-
-diagnostic = (root / "app/src/main/java/com/example/trafficmarker/diagnostic/DiagnosticStore.kt").read_text(encoding="utf-8")
-for token in ["socksClients", "tcpConnectOk", "udpOutPackets", "busEvents", "12 LOG TERAKHIR"]:
-    if token not in diagnostic:
-        errors.append(f"diagnostic component missing: {token}")
-
-if "DiagnosticStore.socksAccepted" not in socks or "DiagnosticStore.tcpConnect" not in socks:
-    errors.append("SOCKS/TCP diagnostic instrumentation missing")
-
-if "DiagnosticStore.udpGatewayAccepted" not in udpgw or "DiagnosticStore.udpPacket" not in udpgw:
-    errors.append("UDP diagnostic instrumentation missing")
-
-traffic_bus = (root / "app/src/main/java/com/example/trafficmarker/net/TrafficBus.kt").read_text(encoding="utf-8")
-if "DiagnosticStore.busEvent" not in traffic_bus:
-    errors.append("TrafficBus diagnostic instrumentation missing")
+store = (root / "app/src/main/java/com/example/trafficmarker/store/MarkerStore.kt").read_text(encoding="utf-8")
+for token in [
+    "addMomentSample",
+    "marker.title",
+    "marker.samples",
+    "markerToJson",
+    "markerFromJson",
+    "importUnique",
+]:
+    if token not in store:
+        errors.append(f"moment marker persistence missing: {token}")
 
 backup = (root / "app/src/main/java/com/example/trafficmarker/store/MarkerBackupManager.kt").read_text(encoding="utf-8")
-for token in ["TrafficMarkerSave", "MediaStore.Downloads.RELATIVE_PATH", "traffic-marker-save", "loadFromUri", "MarkerStore.importUnique"]:
+for token in [
+    "TrafficMarkerSave",
+    "FORMAT_VERSION = 2",
+    "MediaStore.Downloads.RELATIVE_PATH",
+    "MarkerStore.markerToJson",
+    "MarkerStore.markerFromJson",
+    "MarkerStore.importUnique",
+]:
     if token not in backup:
         errors.append(f"marker backup component missing: {token}")
 
-if "fun importUnique" not in store:
-    errors.append("marker safe-import missing")
+moment = (root / "app/src/main/java/com/example/trafficmarker/engine/MomentFingerprintEngine.kt").read_text(encoding="utf-8")
+for token in [
+    "DEFAULT_BEFORE_MS = 8000L",
+    "DEFAULT_AFTER_MS = 1500L",
+    "BURST_GAP_MS = 650L",
+    "createSample",
+    "similarity",
+    "score(marker",
+]:
+    if token not in moment:
+        errors.append(f"moment fingerprint engine missing: {token}")
+
+manual = (root / "app/src/main/java/com/example/trafficmarker/engine/ManualLookaheadStore.kt").read_text(encoding="utf-8")
+for token in [
+    "const val LIMIT = 20",
+    "MENGUMPULKAN",
+    "Mode: ESTIMATED",
+    "MATCH_THRESHOLD",
+    "MomentFingerprintEngine.score",
+]:
+    if token not in manual:
+        errors.append(f"manual LOAD 20 engine missing: {token}")
+
+bubble = (root / "app/src/main/java/com/example/trafficmarker/overlay/MarkerBubbleService.kt").read_text(encoding="utf-8")
+for token in [
+    "TYPE_APPLICATION_OVERLAY",
+    "TANDAI MOMEN + JUDUL",
+    "LOAD 20 MANUAL",
+    "showTitlePrompt",
+    "MarkerStore.addMomentSample",
+    "ManualLookaheadStore.start",
+    "ManualLookaheadStore.snapshot",
+]:
+    if token not in bubble:
+        errors.append(f"bubble component missing: {token}")
+
+provider = (root / "app/src/main/java/com/example/trafficmarker/engine/LookaheadProvider.kt").read_text(encoding="utf-8")
+for token in ["const val WINDOW = 20", "provider.loadAhead(WINDOW)", "LookaheadProvider"]:
+    if token not in provider:
+        errors.append(f"lookahead provider contract missing: {token}")
+
+traffic_bus = (root / "app/src/main/java/com/example/trafficmarker/net/TrafficBus.kt").read_text(encoding="utf-8")
+for token in ["DiagnosticStore.busEvent", "SessionStore.add(raw)", "ManualLookaheadStore.onEvent(raw)"]:
+    if token not in traffic_bus:
+        errors.append(f"TrafficBus routing missing: {token}")
+if "AlertManager.fire" in traffic_bus or "MarkerStore.findMatch" in traffic_bus:
+    errors.append("automatic per-chunk detection is still enabled")
+
+app = (root / "app/src/main/java/com/example/trafficmarker/TrafficMarkerApp.kt").read_text(encoding="utf-8")
+if "AlertManager.init" in app:
+    errors.append("legacy automatic alert channel still initialized")
+if 'deleteNotificationChannel("marker_alerts")' not in app:
+    errors.append("legacy marker alert channel is not removed")
 
 if ".overlay.MarkerBubbleService" not in manifest:
     errors.append("bubble service missing from manifest")
@@ -125,4 +190,4 @@ if errors:
     sys.exit(1)
 
 print("STATIC_VERIFY: PASS")
-print("targetSdk=30; diagnostics; live bubble; marker save/load in Download/TrafficMarkerSave; lookahead engine present")
+print("targetSdk=30; titled moment markers; manual LOAD 20 in bubble; no per-chunk alerts; marker save/load v2")
