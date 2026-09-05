@@ -159,7 +159,7 @@ for token in [
     "TYPE_APPLICATION_OVERLAY",
     "TANDAI MOMEN + JUDUL",
     "LOAD 20 MANUAL",
-    "showTitlePrompt",
+    "showMarkerTitlePrompt",
     "MarkerStore.addMomentSample",
     "ManualLookaheadStore.start",
     "ManualLookaheadStore.snapshot",
