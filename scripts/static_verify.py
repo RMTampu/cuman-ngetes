@@ -172,6 +172,10 @@ for token in [
     "StepRecorder.startStep",
     "StepRecorder.finishStep",
     "ArrivalValidator.validate",
+    "ScrollView",
+    "isLandscape()",
+    "collapsibleHeader",
+    "VALIDASI SELESAI",
 ]:
     if token not in bubble:
         errors.append(f"bubble component missing: {token}")
