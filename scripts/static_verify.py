@@ -28,6 +28,9 @@ required = [
     "app/src/main/java/com/example/trafficmarker/engine/LookaheadEngine.kt",
     "app/src/main/java/com/example/trafficmarker/engine/LookaheadProvider.kt",
     "app/src/main/java/com/example/trafficmarker/overlay/MarkerBubbleService.kt",
+    "app/src/main/java/com/example/trafficmarker/recorder/TrafficRecorder.kt",
+    "app/src/main/java/com/example/trafficmarker/recorder/StepRecorder.kt",
+    "app/src/main/java/com/example/trafficmarker/engine/ArrivalValidator.kt",
 ]
 for rel in required:
     if not (root / rel).is_file():
@@ -74,6 +77,8 @@ for token in [
     "saveMarkersToDownload",
     "openMarkerSavePicker",
     "Tandai via Bubble",
+    "TrafficRecorder.start(clearPrevious = true)",
+    "StepRecorder.reset()",
 ]:
     if token not in main:
         errors.append(f"main component missing: {token}")
@@ -158,6 +163,15 @@ for token in [
     "MarkerStore.addMomentSample",
     "ManualLookaheadStore.start",
     "ManualLookaheadStore.snapshot",
+    "MULAI STEP",
+    "HASIL + LABEL",
+    "SIMPAN RECORDER",
+    "VALIDASI DATA DATANG LEBIH AWAL",
+    "TrafficRecorder.recentText",
+    "TrafficRecorder.saveJsonl",
+    "StepRecorder.startStep",
+    "StepRecorder.finishStep",
+    "ArrivalValidator.validate",
 ]:
     if token not in bubble:
         errors.append(f"bubble component missing: {token}")
@@ -168,7 +182,7 @@ for token in ["const val WINDOW = 20", "provider.loadAhead(WINDOW)", "LookaheadP
         errors.append(f"lookahead provider contract missing: {token}")
 
 traffic_bus = (root / "app/src/main/java/com/example/trafficmarker/net/TrafficBus.kt").read_text(encoding="utf-8")
-for token in ["DiagnosticStore.busEvent", "SessionStore.add(raw)", "ManualLookaheadStore.onEvent(raw)"]:
+for token in ["DiagnosticStore.busEvent", "SessionStore.add(raw)", "TrafficRecorder.onEvent(raw)", "ManualLookaheadStore.onEvent(raw)"]:
     if token not in traffic_bus:
         errors.append(f"TrafficBus routing missing: {token}")
 if "AlertManager.fire" in traffic_bus or "MarkerStore.findMatch" in traffic_bus:
@@ -180,6 +194,23 @@ if "AlertManager.init" in app:
 if 'deleteNotificationChannel("marker_alerts")' not in app:
     errors.append("legacy marker alert channel is not removed")
 
+recorder = (root / "app/src/main/java/com/example/trafficmarker/recorder/TrafficRecorder.kt").read_text(encoding="utf-8")
+for token in ["TrafficMarkerRecorder", "MAX_EVENTS = 10000", "recentText", "saveJsonl", '"type", "step"']:
+    if token not in recorder:
+        errors.append(f"traffic recorder missing: {token}")
+
+step_recorder = (root / "app/src/main/java/com/example/trafficmarker/recorder/StepRecorder.kt").read_text(encoding="utf-8")
+for token in ["startStep", "finishStep", "ground", "StepRecord"]:
+    if token == "ground":
+        continue
+    if token not in step_recorder:
+        errors.append(f"step recorder missing: {token}")
+
+arrival = (root / "app/src/main/java/com/example/trafficmarker/engine/ArrivalValidator.kt").read_text(encoding="utf-8")
+for token in ["NO_DATA", "LEAD_CANDIDATE", "VALIDATED", "EXACT", "precision", "recall", "MAX_LEAD = 20"]:
+    if token not in arrival:
+        errors.append(f"arrival validator missing: {token}")
+
 if ".overlay.MarkerBubbleService" not in manifest:
     errors.append("bubble service missing from manifest")
 
@@ -190,4 +221,4 @@ if errors:
     sys.exit(1)
 
 print("STATIC_VERIFY: PASS")
-print("targetSdk=30; titled moment markers; manual LOAD 20 in bubble; no per-chunk alerts; marker save/load v2")
+print("targetSdk=30; recorder; step ground truth; arrival validator; manual LOAD 20; no per-chunk alerts; marker save/load v2")
