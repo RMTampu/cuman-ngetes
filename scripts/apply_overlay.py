@@ -35,6 +35,12 @@ replace_once(
 )
 
 replace_once(
+    "app/src/main/AndroidManifest.xml",
+    'android:allowBackup="false"\n        android:icon=',
+    'android:allowBackup="false"\n        tools:replace="android:allowBackup"\n        android:icon=',
+)
+
+replace_once(
     "app/src/main/res/values/strings.xml",
     '<string name="app_name">BlackBox</string>',
     '<string name="app_name">Space Lab</string>',
