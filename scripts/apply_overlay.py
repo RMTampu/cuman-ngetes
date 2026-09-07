@@ -383,4 +383,241 @@ replace_once(
 ''',
 )
 
+
+# Gunakan jaringan perangkat secara langsung. Upstream memiliki fallback konektivitas/DNS
+# sintetis yang dapat menghasilkan Network/LinkProperties palsu dan memutus Private DNS.
+connectivity_proxy = r'''package top.niunaijun.blackbox.fake.service;
+
+import android.content.Context;
+
+import black.android.net.BRIConnectivityManagerStub;
+import black.android.os.BRServiceManager;
+import top.niunaijun.blackbox.fake.hook.BinderInvocationStub;
+import top.niunaijun.blackbox.fake.hook.ScanClass;
+
+@ScanClass(VpnCommonProxy.class)
+public class IConnectivityManagerProxy extends BinderInvocationStub {
+    public static final String TAG = "IConnectivityManagerProxy";
+
+    public IConnectivityManagerProxy() {
+        super(BRServiceManager.get().getService(Context.CONNECTIVITY_SERVICE));
+    }
+
+    @Override
+    protected Object getWho() {
+        return BRIConnectivityManagerStub.get().asInterface(
+                BRServiceManager.get().getService(Context.CONNECTIVITY_SERVICE));
+    }
+
+    @Override
+    protected void inject(Object baseInvocation, Object proxyInvocation) {
+        replaceSystemService(Context.CONNECTIVITY_SERVICE);
+    }
+
+    @Override
+    public boolean isBadEnv() {
+        return false;
+    }
+}
+'''
+write(
+    "Bcore/src/main/java/top/niunaijun/blackbox/fake/service/IConnectivityManagerProxy.java",
+    connectivity_proxy,
+)
+
+# VPN internal upstream hanya membuat interface TUN tanpa packet-forwarder lengkap.
+# Paksa mode jaringan normal agar trafik guest tidak masuk ke jalur yang dapat menjadi black-hole.
+replace_once(
+    "app/src/main/java/top/niunaijun/blackboxa/view/main/BlackBoxLoader.kt",
+    '''    fun useVpnNetwork(): Boolean {
+        return try {
+            mUseVpnNetwork
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting useVpnNetwork: \${e.message}")
+            false
+        }
+    }
+
+    fun invalidUseVpnNetwork(enable: Boolean) {
+        try {
+            this.mUseVpnNetwork = enable
+        } catch (e: Exception) {
+            Log.e(TAG, "Error setting useVpnNetwork: \${e.message}")
+        }
+    }
+''',
+    '''    fun useVpnNetwork(): Boolean {
+        return false
+    }
+
+    fun invalidUseVpnNetwork(enable: Boolean) {
+        try {
+            this.mUseVpnNetwork = false
+        } catch (e: Exception) {
+            Log.e(TAG, "Gagal menonaktifkan jaringan VPN: \${e.message}")
+        }
+    }
+''',
+)
+
+replace_once(
+    "app/src/main/java/top/niunaijun/blackboxa/view/main/BlackBoxLoader.kt",
+    '''                                override fun isUseVpnNetwork(): Boolean {
+                                    return try {
+                                        mUseVpnNetwork
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "Error checking useVpnNetwork: \${e.message}")
+                                        false
+                                    }
+                                }
+''',
+    '''                                override fun isUseVpnNetwork(): Boolean {
+                                    return false
+                                }
+''',
+)
+
+# Hilangkan switch VPN agar pengguna tidak dapat mengaktifkan jalur TUN yang tidak dipakai.
+replace_once(
+    "app/src/main/java/top/niunaijun/blackboxa/view/setting/SettingFragment.kt",
+    '''        invalidHideState {
+            val vpnPreference: Preference = (findPreference("use_vpn_network")!!)
+            val mUseVpnNetwork = AppManager.mBlackBoxLoader.useVpnNetwork()
+            vpnPreference.setDefaultValue(mUseVpnNetwork)
+            vpnPreference
+        }
+
+''',
+    "",
+)
+
+replace_once(
+    "app/src/main/res/xml/setting.xml",
+    '''        <SwitchPreferenceCompat
+                app:key="use_vpn_network"
+                app:title="@string/use_vpn_network"
+                app:summary="@string/use_vpn_network_summary" />
+
+''',
+    '''        <Preference
+                android:key="network_info"
+                android:title="@string/network_mode"
+                android:summary="@string/network_mode_summary"
+                android:selectable="false" />
+
+''',
+)
+
+replace_once(
+    "app/src/main/res/xml/setting.xml",
+    '''        <Preference
+                android:key="send_logs"
+                android:title="Send Logs"
+                android:summary="Upload debug logs to developer" />
+''',
+    '''        <Preference
+                android:key="send_logs"
+                android:title="@string/send_logs"
+                android:summary="@string/send_logs_summary" />
+''',
+)
+
+replace_once(
+    "app/src/main/java/top/niunaijun/blackboxa/view/setting/SettingFragment.kt",
+    '            toast("Sending logs... (Check notifications for status)")',
+    '            toast(R.string.sending_logs)',
+)
+
+# Bahasa Indonesia dijadikan resource dasar supaya seluruh UI host konsisten.
+strings_id = r'''<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Space Lab</string>
+    <string name="choose">Pilih</string>
+    <string name="choose_app">Pilih Aplikasi</string>
+    <string name="installed_app">Aplikasi Terpasang</string>
+    <string name="installed_module">Modul Terpasang</string>
+    <string name="empty_empty">Kosong</string>
+    <string name="filter">Cari</string>
+    <string name="open_source_path">Kode Sumber</string>
+    <string name="xp_setting">Pengaturan Xposed</string>
+    <string name="tg_group">Grup Telegram</string>
+    <string name="fake_location">Lokasi Palsu (Pratinjau)</string>
+    <string name="real_location">Lokasi Asli</string>
+    <string name="set_location">Lokasi palsu berhasil diatur: %s-%s</string>
+    <string name="close_fake_location">Nonaktifkan Lokasi Palsu</string>
+    <string name="close_app_fake_location">Nonaktifkan lokasi palsu untuk %s</string>
+    <string name="close_fake_location_success">Lokasi palsu untuk %s berhasil dinonaktifkan</string>
+    <string name="setting">Pengaturan</string>
+    <string name="jump_module">Buka Pengelola Modul</string>
+    <string name="module_setting">Pengelola Modul</string>
+    <string name="enable_xposed">Aktifkan Kerangka Xposed</string>
+    <string name="hider">Sembunyikan</string>
+    <string name="hide_root">Sembunyikan Root</string>
+    <string name="hide_xposed">Sembunyikan Xposed</string>
+    <string name="userRemark">Catatan Pengguna</string>
+    <string name="done">Selesai</string>
+    <string name="cancel">Batal</string>
+    <string name="permission_setting">Pengaturan Izin</string>
+    <string name="no_reminders">Jangan Ingatkan Lagi</string>
+    <string name="app_stop">Hentikan Aplikasi</string>
+    <string name="app_stop_hint">Paksa hentikan %s?</string>
+    <string name="is_stop">%s telah dihentikan</string>
+    <string name="app_clear">Hapus Data</string>
+    <string name="app_clear_hint">Hapus data %s?</string>
+    <string name="app_remove">Hapus Aplikasi</string>
+    <string name="app_shortcut">Buat Pintasan</string>
+    <string name="shortcut_name">Nama Pintasan</string>
+    <string name="try_add_shortcut">Mencoba menambahkan ke layar utama</string>
+    <string name="add_shortcut_fail_msg">Jika gagal, buka pengaturan sistem dan izinkan Space Lab membuat pintasan layar utama.</string>
+    <string name="install_success">Berhasil dipasang</string>
+    <string name="install_fail">Gagal memasang: %s</string>
+    <string name="install_fail_no_msg">Gagal memasang</string>
+    <string name="uninstall_success">Berhasil dihapus</string>
+    <string name="uninstall_fail">Gagal menghapus</string>
+    <string name="uninstall_app">Hapus Aplikasi</string>
+    <string name="uninstall_app_hint">Hapus %s? Data aplikasi virtual terkait juga akan dihapus.</string>
+    <string name="uninstall_module">Hapus Modul</string>
+    <string name="uninstall_module_hint">Hapus modul ini? Modul tidak akan bekerja setelah dihapus.</string>
+    <string name="remove_success">Berhasil dihapus</string>
+    <string name="clear_success">Data berhasil dihapus</string>
+    <string name="start_fail">Gagal menjalankan aplikasi</string>
+    <string name="start_in_outside">Jalankan modul di luar ruang virtual</string>
+    <string name="restart_module">Mulai ulang Space Lab agar perubahan diterapkan</string>
+    <string name="cannot_create_shortcut">Peluncur ini tidak mendukung pembuatan pintasan</string>
+    <string name="uninstall_module_toast">Hapus modul Xposed melalui Pengelola Modul</string>
+    <string name="other">Lainnya</string>
+    <string name="daemon_enable">Layanan Latar Belakang</string>
+    <string name="use_vpn_network">Gunakan Jaringan VPN</string>
+    <string name="use_vpn_network_summary">Arahkan trafik aplikasi virtual melalui VPN</string>
+    <string name="network_mode">Jaringan</string>
+    <string name="network_mode_summary">Menggunakan jaringan perangkat secara langsung. VPN internal dinonaktifkan agar DNS dan koneksi internet tetap mengikuti jaringan HP.</string>
+    <string name="disable_flag_secure">Izinkan Tangkapan Layar</string>
+    <string name="disable_flag_secure_summary">Izinkan tangkapan layar dan perekaman layar pada aplikasi virtual</string>
+    <string name="gms_manager">Pengelola Layanan Google</string>
+    <string name="jump_gms">Buka pengelola layanan Google</string>
+    <string name="enable_gms">Aktifkan Layanan Google</string>
+    <string name="enable_gms_hint">Mengaktifkan layanan Google membantu aplikasi yang bergantung pada Google Play Services.</string>
+    <string name="disable_gms">Nonaktifkan Layanan Google</string>
+    <string name="disable_gms_hint">Hapus lingkungan layanan Google saat ini? Data layanan Google di ruang virtual akan dihapus.</string>
+    <string name="no_gms">Lingkungan layanan Google belum tersedia pada perangkat ini.</string>
+    <string name="send_logs">Kirim Log</string>
+    <string name="send_logs_summary">Kirim log debug untuk membantu pemeriksaan masalah</string>
+    <string name="sending_logs">Mengirim log… Periksa notifikasi untuk statusnya.</string>
+    <string name="virtual_id_reset">Ganti ID Virtual</string>
+    <string name="virtual_id_reset_hint">Buat Android ID virtual baru untuk %s? APK dan data aplikasi tidak dihapus.</string>
+    <string name="virtual_id_reset_done">ID virtual baru: %s</string>
+</resources>
+'''
+write("app/src/main/res/values/strings.xml", strings_id)
+
+# Hapus locale bawaan upstream agar tidak ada teks lama/branding BlackBox yang mengalahkan
+# resource Indonesia ketika perangkat memakai locale Tionghoa.
+for rel in (
+    "app/src/main/res/values-zh-rCN/strings.xml",
+    "app/src/main/res/values-zh-rTW/strings.xml",
+):
+    path = root / rel
+    if path.exists():
+        path.unlink()
+
 print("Space Lab overlay applied")
