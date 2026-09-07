@@ -433,7 +433,7 @@ replace_once(
         return try {
             mUseVpnNetwork
         } catch (e: Exception) {
-            Log.e(TAG, "Error getting useVpnNetwork: \${e.message}")
+            Log.e(TAG, "Error getting useVpnNetwork: ${e.message}")
             false
         }
     }
@@ -442,7 +442,7 @@ replace_once(
         try {
             this.mUseVpnNetwork = enable
         } catch (e: Exception) {
-            Log.e(TAG, "Error setting useVpnNetwork: \${e.message}")
+            Log.e(TAG, "Error setting useVpnNetwork: ${e.message}")
         }
     }
 ''',
@@ -454,7 +454,7 @@ replace_once(
         try {
             this.mUseVpnNetwork = false
         } catch (e: Exception) {
-            Log.e(TAG, "Gagal menonaktifkan jaringan VPN: \${e.message}")
+            Log.e(TAG, "Gagal menonaktifkan jaringan VPN: ${e.message}")
         }
     }
 ''',
@@ -466,7 +466,7 @@ replace_once(
                                     return try {
                                         mUseVpnNetwork
                                     } catch (e: Exception) {
-                                        Log.e(TAG, "Error checking useVpnNetwork: \${e.message}")
+                                        Log.e(TAG, "Error checking useVpnNetwork: ${e.message}")
                                         false
                                     }
                                 }
