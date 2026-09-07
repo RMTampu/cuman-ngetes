@@ -1,2 +1,0 @@
--keep class com.ooimi.** { *; }
--dontwarn com.ooimi.**
