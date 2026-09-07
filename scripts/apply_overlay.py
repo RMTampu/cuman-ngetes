@@ -275,6 +275,61 @@ write(
 )
 
 replace_once(
+    "Bcore/src/main/java/top/niunaijun/blackbox/fake/service/context/providers/SystemProviderStub.java",
+    "import android.os.IInterface;\n",
+    "import android.os.IInterface;\nimport android.os.Bundle;\n",
+)
+
+replace_once(
+    "Bcore/src/main/java/top/niunaijun/blackbox/fake/service/context/providers/SystemProviderStub.java",
+    "import top.niunaijun.blackbox.utils.compat.ContextCompat;\n",
+    "import top.niunaijun.blackbox.utils.compat.ContextCompat;\nimport top.niunaijun.blackbox.virtual.VirtualIdentityManager;\n",
+)
+
+replace_once(
+    "Bcore/src/main/java/top/niunaijun/blackbox/fake/service/context/providers/SystemProviderStub.java",
+    '''        if ("call".equals(methodName)) {
+            
+            if (args != null) {
+                Class<?> attributionSourceClass = BRAttributionSource.getRealClass();
+                for (int i = 0; i < args.length; i++) {
+                    Object arg = args[i];
+                    
+                    if (arg != null && attributionSourceClass != null && 
+                            arg.getClass().getName().equals(attributionSourceClass.getName())) {
+                        ContextCompat.fixAttributionSourceState(arg, BlackBoxCore.getHostUid());
+                    }
+                }
+            }
+            return method.invoke(mBase, args);
+        }
+''',
+    '''        if ("call".equals(methodName)) {
+            if (args != null) {
+                for (Object arg : args) {
+                    if (arg instanceof String && "android_id".equals(arg)) {
+                        Bundle result = new Bundle();
+                        result.putString("value", VirtualIdentityManager.getAndroidIdForCurrentGuest());
+                        return result;
+                    }
+                }
+
+                Class<?> attributionSourceClass = BRAttributionSource.getRealClass();
+                for (int i = 0; i < args.length; i++) {
+                    Object arg = args[i];
+
+                    if (arg != null && attributionSourceClass != null &&
+                            arg.getClass().getName().equals(attributionSourceClass.getName())) {
+                        ContextCompat.fixAttributionSourceState(arg, BlackBoxCore.getHostUid());
+                    }
+                }
+            }
+            return method.invoke(mBase, args);
+        }
+''',
+)
+
+replace_once(
     "app/src/main/java/top/niunaijun/blackboxa/view/apps/AppsFragment.kt",
     "import top.niunaijun.blackbox.BlackBoxCore\n",
     "import top.niunaijun.blackbox.BlackBoxCore\nimport top.niunaijun.blackbox.virtual.VirtualIdentityManager\n",
