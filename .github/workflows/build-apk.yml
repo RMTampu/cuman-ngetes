@@ -20,16 +20,15 @@ jobs:
 
     steps:
       - name: Checkout control repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: control
 
       - name: Set up Java 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"
-          cache: gradle
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
@@ -51,10 +50,10 @@ jobs:
           UPSTREAM_REPO="$(sed -n '1p' control/UPSTREAM.lock)"
           UPSTREAM_COMMIT="$(sed -n '2p' control/UPSTREAM.lock)"
           git init upstream
-          git -C upstream remote add origin "https://github.com/\${UPSTREAM_REPO}.git"
-          git -C upstream fetch --depth 1 origin "\${UPSTREAM_COMMIT}"
+          git -C upstream remote add origin "https://github.com/${UPSTREAM_REPO}.git"
+          git -C upstream fetch --depth 1 origin "${UPSTREAM_COMMIT}"
           git -C upstream checkout --detach FETCH_HEAD
-          test "$(git -C upstream rev-parse HEAD)" = "\${UPSTREAM_COMMIT}"
+          test "$(git -C upstream rev-parse HEAD)" = "${UPSTREAM_COMMIT}"
 
       - name: Apply Space Lab overlay
         run: python3 control/scripts/apply_overlay.py upstream
@@ -76,13 +75,13 @@ jobs:
           set -euo pipefail
           mkdir -p output
           ARM64_APK="$(find upstream/app/build/outputs/apk -type f -name '*.apk' | grep -E 'arm64-v8a.*debug|debug.*arm64-v8a' | head -n 1 || true)"
-          if [ -z "\${ARM64_APK}" ]; then
+          if [ -z "${ARM64_APK}" ]; then
             echo "arm64 split APK not found"
             find upstream/app/build/outputs/apk -type f -name '*.apk' -print || true
             exit 1
           fi
-          unzip -l "\${ARM64_APK}" | grep -q 'lib/arm64-v8a/'
-          cp "\${ARM64_APK}" output/SpaceLab-android11-arm64-debug.apk
+          unzip -l "${ARM64_APK}" | grep -q 'lib/arm64-v8a/'
+          cp "${ARM64_APK}" output/SpaceLab-android11-arm64-debug.apk
           sha256sum output/SpaceLab-android11-arm64-debug.apk > output/SHA256SUMS.txt
 
       - name: Upload APK
