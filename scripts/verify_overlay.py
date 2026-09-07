@@ -19,6 +19,11 @@ checks = {
     "Bcore/src/main/java/top/niunaijun/blackbox/fake/service/AndroidIdProxy.java": [
         "VirtualIdentityManager.getAndroidIdForCurrentGuest()",
     ],
+    "Bcore/src/main/java/top/niunaijun/blackbox/fake/service/context/providers/SystemProviderStub.java": [
+        "\"android_id\".equals(arg)",
+        "VirtualIdentityManager.getAndroidIdForCurrentGuest()",
+        "result.putString(\"value\"",
+    ],
     "app/src/main/res/menu/app_menu.xml": [
         "app_identity_reset",
     ],
