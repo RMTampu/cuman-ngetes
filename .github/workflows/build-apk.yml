@@ -81,6 +81,16 @@ jobs:
             exit 1
           fi
           unzip -l "${ARM64_APK}" | grep -q 'lib/arm64-v8a/'
+          if unzip -l "${ARM64_APK}" | grep -q 'lib/armeabi-v7a/'; then
+            echo "unexpected armeabi-v7a payload in arm64 artifact"
+            exit 1
+          fi
+          AAPT="${ANDROID_HOME}/build-tools/35.0.0/aapt"
+          "${AAPT}" dump badging "${ARM64_APK}" | tee output/badging.txt
+          grep -q "native-code: 'arm64-v8a'" output/badging.txt
+          grep -q "application-label:'Space Lab'" output/badging.txt
+          "${AAPT}" dump xmltree "${ARM64_APK}" AndroidManifest.xml > output/manifest-tree.txt
+          grep -A4 'E: application' output/manifest-tree.txt | grep -q 'android:allowBackup.*0x0'
           cp "${ARM64_APK}" output/SpaceLab-android11-arm64-debug.apk
           sha256sum output/SpaceLab-android11-arm64-debug.apk > output/SHA256SUMS.txt
 
