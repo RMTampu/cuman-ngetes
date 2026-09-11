@@ -62,12 +62,10 @@ if n != 1:
 write("app/build.gradle", build_gradle)
 
 manifest_rel = "app/src/main/AndroidManifest.xml"
-replace_once(manifest_rel, 'android:allowBackup="true"', 'android:allowBackup="false"')
-replace_once(
-    manifest_rel,
-    'tools:replace="android:label"',
-    'tools:replace="android:label,android:allowBackup"',
-)
+manifest = read(manifest_rel)
+manifest = manifest.replace('android:allowBackup="true"', 'android:allowBackup="false"', 1)
+manifest = manifest.replace('tools:replace="android:label"', 'tools:replace="android:label,android:allowBackup"', 1)
+write(manifest_rel, manifest)
 
 # Make PCAP file output the normal behavior. Traffic still goes to its original
 # destination; the app only keeps a local packet copy.
@@ -140,6 +138,9 @@ set_string("about_text", "Salin Jaringan membuat salinan trafik aplikasi target 
 set_string("select_target_first", "Pilih aplikasi target terlebih dahulu.")
 set_string("no_activity_file_selection", "Tidak ada aplikasi sistem yang dapat membuka pemilih lokasi penyimpanan.")
 set_string("file_saved_with_name", "Salinan disimpan sebagai \"%1$s\".")
+set_string("simple_binary_title", "Data biner / terenkripsi")
+set_string("simple_readable_text", "Teks yang terbaca")
+set_string("simple_no_readable_text", "Tidak ada teks yang dapat dibaca.")
 
 ET.indent(base_tree, space="    ")
 base_tree.write(base_strings, encoding="utf-8", xml_declaration=True)
@@ -161,6 +162,26 @@ replacement = '''    public void startCapture() {\n        if (Prefs.getAppFilte
 if main.count(needle) != 1:
     raise RuntimeError("MainActivity.java: startCapture anchor not found")
 write(main_rel, main.replace(needle, replacement, 1))
+
+# Default the payload screen to a readable/simple view. Hexdump remains available
+# from the advanced display menu for users who explicitly need raw bytes.
+payload_fragment_rel = "app/src/main/java/com/emanuelef/remote_capture/fragments/ConnectionPayload.java"
+payload_fragment = read(payload_fragment_rel)
+old_guess = '''    public boolean guessDisplayAsPrintable() {\n        if (mConn == null)\n            return false;\n\n        // try to determine the best mode based on the current payload\n        if(mConn.getNumPayloadChunks() == 0)\n            return mConn.l7proto.equals("HTTPS");\n\n        PayloadChunk firstChunk = mConn.getPayloadChunk(0);\n        if((firstChunk == null) || (firstChunk.type == PayloadChunk.ChunkType.HTTP))\n            return true;\n\n        // guess based on the actual data\n        int maxLen = Math.min(firstChunk.payload.length, 16);\n        for(int i = 0; i < maxLen; i++) {\n            if(!Utils.isPrintable(firstChunk.payload[i]))\n                return false;\n        }\n\n        return true;\n    }\n'''
+new_guess = '''    public boolean guessDisplayAsPrintable() {\n        // Salin Jaringan uses the simple/readable view by default.\n        // Raw hexdump remains an explicit advanced option in the menu.\n        return true;\n    }\n'''
+if payload_fragment.count(old_guess) != 1:
+    raise RuntimeError("ConnectionPayload.java: display-mode anchor not found")
+write(payload_fragment_rel, payload_fragment.replace(old_guess, new_guess, 1))
+
+# Replace unreadable UTF-8 garbage with a concise readable summary for binary/TLS
+# chunks. Plain text, HTTP and JSON keep their normal human-readable rendering.
+payload_adapter_rel = "app/src/main/java/com/emanuelef/remote_capture/adapters/PayloadAdapter.java"
+payload_adapter = read(payload_adapter_rel)
+old_make_text = '''        @CheckResult\n        private String makeText(boolean as_printable, boolean expanded) {\n            int dump_len = expanded ? mChunk.payload.length : Math.min(mChunk.payload.length, COLLAPSE_CHUNK_SIZE);\n\n            if(!as_printable)\n                return Utils.hexdump(mChunk.payload, 0, dump_len);\n            else\n                return new String(mChunk.payload, 0, dump_len, StandardCharsets.UTF_8);\n        }\n'''
+new_make_text = '''        @CheckResult\n        private String makeText(boolean as_printable, boolean expanded) {\n            int dump_len = expanded ? mChunk.payload.length : Math.min(mChunk.payload.length, COLLAPSE_CHUNK_SIZE);\n\n            if(!as_printable)\n                return Utils.hexdump(mChunk.payload, 0, dump_len);\n\n            if(dump_len == 0)\n                return "";\n\n            int printable = 0;\n            for(int i = 0; i < dump_len; i++) {\n                int b = mChunk.payload[i] & 0xFF;\n                if((b == 9) || (b == 10) || (b == 13) || ((b >= 32) && (b <= 126)))\n                    printable++;\n            }\n\n            // Normal text stays untouched. This also preserves HTTP/JSON formatting.\n            if((printable * 100 / dump_len) >= 80)\n                return new String(mChunk.payload, 0, dump_len, StandardCharsets.UTF_8);\n\n            StringBuilder out = new StringBuilder();\n            out.append(mContext.getString(R.string.simple_binary_title));\n            out.append("\\n");\n            out.append(Utils.formatBytes(dump_len));\n            out.append("\\n\\n");\n            out.append(mContext.getString(R.string.simple_readable_text));\n            out.append(":\\n");\n\n            StringBuilder run = new StringBuilder();\n            int found = 0;\n            for(int i = 0; i < dump_len; i++) {\n                int b = mChunk.payload[i] & 0xFF;\n                if((b >= 32) && (b <= 126)) {\n                    if(run.length() < 160)\n                        run.append((char)b);\n                } else {\n                    if(run.length() >= 4) {\n                        out.append("• ").append(run).append("\\n");\n                        found++;\n                        if(found >= 12)\n                            break;\n                    }\n                    run.setLength(0);\n                }\n            }\n\n            if((found < 12) && (run.length() >= 4)) {\n                out.append("• ").append(run).append("\\n");\n                found++;\n            }\n\n            if(found == 0)\n                out.append(mContext.getString(R.string.simple_no_readable_text));\n\n            return out.toString();\n        }\n'''
+if payload_adapter.count(old_make_text) != 1:
+    raise RuntimeError("PayloadAdapter.java: makeText anchor not found")
+write(payload_adapter_rel, payload_adapter.replace(old_make_text, new_make_text, 1))
 
 # No certificate-pinning bypass or anti-abuse bypass is added. HTTPS remains
 # encrypted unless the target itself exposes plaintext through supported means.
