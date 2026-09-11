@@ -22,6 +22,14 @@ Sebelum mengubah repository ini, baca file ini penuh.
 - Jangan menambahkan fitur backup diam-diam.
 - Jangan memasukkan signing key privat atau secret ke repository.
 
+## Salin Jaringan — aturan external-first
+- Aplikasi target yang sudah jadi tidak boleh diwajibkan rebuild hanya untuk memakai fungsi utama Salin Jaringan.
+- Mode utama harus bekerja dari luar aplikasi target sejauh kemampuan Android mengizinkan, terutama melalui local VPN/network capture dan mekanisme Android resmi yang tidak membutuhkan perubahan aplikasi target.
+- Jembatan Runtime adalah fitur opsional/eksperimental, bukan syarat penggunaan dan bukan standar wajib untuk aplikasi target.
+- Jangan menjadikan modifikasi source, repack, hooking, pembacaan memori proses aplikasi lain, atau bypass proteksi sebagai solusi default.
+- Jika data runtime setelah parsing tidak dapat diperoleh dari luar aplikasi target, tampilkan keterbatasan tersebut dengan jelas; jangan diam-diam memaksa rebuild aplikasi target.
+- Perubahan Salin Jaringan harus mempertahankan aplikasi target apa adanya kecuali pengguna secara eksplisit meminta integrasi pada aplikasi yang memang mereka miliki/kembangkan.
+
 ## Build
 - Pinned upstream harus diverifikasi sebelum overlay diterapkan.
 - APK uji dihasilkan sebagai artifact GitHub Actions.
