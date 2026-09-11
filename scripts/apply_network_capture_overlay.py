@@ -61,10 +61,12 @@ if n != 1:
     raise RuntimeError("app/build.gradle: resourceConfigurations block not found")
 write("app/build.gradle", build_gradle)
 
+manifest_rel = "app/src/main/AndroidManifest.xml"
+replace_once(manifest_rel, 'android:allowBackup="true"', 'android:allowBackup="false"')
 replace_once(
-    "app/src/main/AndroidManifest.xml",
-    'android:allowBackup="true"',
-    'android:allowBackup="false"',
+    manifest_rel,
+    'tools:replace="android:label"',
+    'tools:replace="android:label,android:allowBackup"',
 )
 
 # Make PCAP file output the normal behavior. Traffic still goes to its original
