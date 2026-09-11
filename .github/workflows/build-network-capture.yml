@@ -8,6 +8,7 @@ on:
       - "NETWORK_CAPTURE.lock"
       - "scripts/apply_network_capture_overlay.py"
       - "scripts/apply_json_export_overlay.py"
+      - "scripts/apply_connections_json_overlay.py"
       - ".github/workflows/build-network-capture.yml"
 
 permissions:
@@ -47,6 +48,7 @@ jobs:
         run: |
           python3 control/scripts/apply_network_capture_overlay.py capture
           python3 control/scripts/apply_json_export_overlay.py capture
+          python3 control/scripts/apply_connections_json_overlay.py capture
 
       - name: Build signed test APK
         working-directory: capture
