@@ -6,7 +6,7 @@ import subprocess
 import sys
 import xml.etree.ElementTree as ET
 
-PINNED_COMMIT = "dbfd5e04f560adf02f88c8fd0a8d3588e39fa71f"
+PINNED_COMMIT = "fc9fe0c56908846c9f1817ed3a50618ab6fb5556"
 
 if len(sys.argv) != 2:
     raise SystemExit("usage: apply_network_capture_overlay.py <pcapdroid-root>")
@@ -38,7 +38,7 @@ head = subprocess.check_output(
 if head != PINNED_COMMIT:
     raise RuntimeError(f"unexpected upstream commit: {head}")
 
-# Branding, Android 11/arm64 delivery, and reduced package footprint.
+# Branding, Android 11/arm64 delivery, and Indonesian-only resources.
 build_gradle = read("app/build.gradle")
 build_gradle = build_gradle.replace(
     'applicationId "com.emanuelef.remote_capture"',
@@ -46,8 +46,8 @@ build_gradle = build_gradle.replace(
     1,
 )
 build_gradle = build_gradle.replace(
-    "        targetSdk 37\n",
-    "        targetSdk 37\n\n        ndk {\n            abiFilters 'arm64-v8a'\n        }\n",
+    "        targetSdk 35\n",
+    "        targetSdk 35\n\n        ndk {\n            abiFilters 'arm64-v8a'\n        }\n",
     1,
 )
 build_gradle, n = re.subn(
@@ -66,6 +66,19 @@ replace_once(
     'android:allowBackup="true"',
     'android:allowBackup="false"',
 )
+
+# Make PCAP file output the normal behavior. Traffic still goes to its original
+# destination; the app only keeps a local packet copy.
+prefs_rel = "app/src/main/java/com/emanuelef/remote_capture/model/Prefs.java"
+prefs = read(prefs_rel)
+prefs = prefs.replace(
+    "public static final String DEFAULT_DUMP_MODE = DUMP_NONE;",
+    "public static final String DEFAULT_DUMP_MODE = DUMP_PCAP_FILE;",
+    1,
+)
+prefs = prefs.replace('return(p.getString(PREF_FILENAME_PREFIX, "PCAPdroid_"));',
+                      'return(p.getString(PREF_FILENAME_PREFIX, "SalinJaringan_"));', 1)
+write(prefs_rel, prefs)
 
 # Force the Indonesian translation as the default language while preserving
 # non-translatable constants from the upstream default resource file.
@@ -89,6 +102,13 @@ for idx, child in enumerate(list(base_root)):
         base_root.remove(child)
         base_root.insert(idx, deepcopy(translated[key]))
 
+# Keep user-visible branding consistent.
+for elem in base_root.iter():
+    if elem.text:
+        elem.text = elem.text.replace("PCAPdroid", "Salin Jaringan")
+    if elem.tail:
+        elem.tail = elem.tail.replace("PCAPdroid", "Salin Jaringan")
+
 
 def set_string(name: str, value: str, translatable=None) -> None:
     for child in base_root.findall("string"):
@@ -108,14 +128,16 @@ def set_string(name: str, value: str, translatable=None) -> None:
 
 set_string("pcapdroid_app_name", "Salin Jaringan", False)
 set_string("target_apps", "Aplikasi target")
-set_string("target_apps_help", "Pilih aplikasi yang trafiknya ingin disalin. Penangkapan tidak akan dimulai sebelum ada aplikasi target yang dipilih.")
+set_string("target_apps_help", "Pilih aplikasi yang trafiknya ingin disalin. Penyalinan tidak dapat dimulai sebelum ada aplikasi target yang dipilih.")
 set_string("capture_all_apps", "Belum ada aplikasi target. Pilih target terlebih dahulu.")
 set_string("start_button", "Mulai Menyalin")
 set_string("stop_button", "Berhenti")
 set_string("pcap_file", "Simpan Salinan")
-set_string("pcap_file_info", "Simpan salinan trafik aplikasi target ke penyimpanan perangkat.")
-set_string("about_text", "Salin Jaringan menyalin trafik aplikasi target secara lokal melalui VPN Android tanpa mengirim data ke server VPN jarak jauh.")
+set_string("pcap_file_info", "Simpan salinan trafik aplikasi target ke lokasi yang Anda pilih.")
+set_string("about_text", "Salin Jaringan membuat salinan trafik aplikasi target secara lokal. Tujuan koneksi asli tidak diubah.")
 set_string("select_target_first", "Pilih aplikasi target terlebih dahulu.")
+set_string("no_activity_file_selection", "Tidak ada aplikasi sistem yang dapat membuka pemilih lokasi penyimpanan.")
+set_string("file_saved_with_name", "Salinan disimpan sebagai \"%1$s\".")
 
 ET.indent(base_tree, space="    ")
 base_tree.write(base_strings, encoding="utf-8", xml_declaration=True)
@@ -125,18 +147,19 @@ debug_strings = root / "app/src/debug/res/values/strings.xml"
 if debug_strings.exists():
     data = debug_strings.read_text(encoding="utf-8")
     data = data.replace("PCAPdroid (beta)", "Salin Jaringan")
+    data = data.replace("PCAPdroid", "Salin Jaringan")
     debug_strings.write_text(data, encoding="utf-8")
 
-# Never permit a capture session without a target-app filter. This guarantees
-# the app does not silently copy device-wide traffic.
+# Never permit device-wide capture: at least one target app is mandatory.
 main_rel = "app/src/main/java/com/emanuelef/remote_capture/activities/MainActivity.java"
 main = read(main_rel)
+main = main.replace('        setTitle("PCAPdroid");', '        setTitle("Salin Jaringan");', 1)
 needle = '''    public void startCapture() {\n        if (VpnReconnectService.isAvailable())\n'''
-replacement = '''    public void startCapture() {\n        if (!Prefs.isAppFilterEnabled(mPrefs) || Prefs.getAppFilterRaw(mPrefs) == null || Prefs.getAppFilterRaw(mPrefs).isEmpty()) {\n            Utils.showToastLong(this, R.string.select_target_first);\n            startActivity(new Intent(this, AppFilterActivity.class));\n            return;\n        }\n\n        if (VpnReconnectService.isAvailable())\n'''
+replacement = '''    public void startCapture() {\n        if (Prefs.getAppFilter(mPrefs).isEmpty()) {\n            Utils.showToastLong(this, R.string.select_target_first);\n            startActivity(new Intent(this, AppFilterActivity.class));\n            return;\n        }\n\n        if (VpnReconnectService.isAvailable())\n'''
 if main.count(needle) != 1:
     raise RuntimeError("MainActivity.java: startCapture anchor not found")
 write(main_rel, main.replace(needle, replacement, 1))
 
-# Keep the existing local-VPN packet forwarding engine. TLS decryption remains
-# off by default; no certificate/pinning bypass is added by this overlay.
+# No certificate-pinning bypass or anti-abuse bypass is added. HTTPS remains
+# encrypted unless the target itself exposes plaintext through supported means.
 print("Salin Jaringan overlay applied")
