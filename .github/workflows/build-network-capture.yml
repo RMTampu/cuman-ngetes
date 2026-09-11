@@ -32,14 +32,15 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install SDK, NDK, and CMake
+      - name: Install stable SDK, NDK, and CMake
         shell: bash
         run: |
           set -euo pipefail
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager \
             "platform-tools" \
-            "platforms;android-37" \
+            "platforms;android-35" \
+            "build-tools;35.0.0" \
             "ndk;28.2.13676358" \
             "cmake;3.22.1"
 
