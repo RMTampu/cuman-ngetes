@@ -10,6 +10,7 @@ on:
       - "scripts/apply_json_export_overlay.py"
       - "scripts/apply_connections_json_overlay.py"
       - "scripts/apply_runtime_bridge_overlay.py"
+      - "scripts/apply_external_first_policy_overlay.py"
       - ".github/workflows/build-network-capture.yml"
 
 permissions:
@@ -51,6 +52,7 @@ jobs:
           python3 control/scripts/apply_json_export_overlay.py capture
           python3 control/scripts/apply_connections_json_overlay.py capture
           python3 control/scripts/apply_runtime_bridge_overlay.py capture
+          python3 control/scripts/apply_external_first_policy_overlay.py capture
 
       - name: Build signed test APK
         working-directory: capture
