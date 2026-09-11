@@ -1,16 +1,21 @@
-# Space Lab
+# cuman-ngetes
 
-Experimental Android virtual-space/multi-instance project for Android 11 arm64-v8a.
+Repository uji Android 11 arm64-v8a.
 
-## Current scope
+## Space Lab
 
-- isolated virtual users and application data from the pinned virtual-space engine;
-- the same app can be installed for multiple virtual users;
-- Virtual Android ID is stable per virtual user + package;
-- Virtual Android ID can be rotated manually without uninstalling the guest APK or clearing guest app data;
-- guest process is stopped before identity rotation takes effect;
-- Android backup is disabled.
+Build virtual-space/multi-instance tetap dipertahankan dan dibangun oleh workflow `build-apk.yml`.
 
-Not included: app-data backup/snapshot/recovery, hardware-ID modification, Play Integrity bypass, server-binding bypass, anti-cheat bypass, or anti-abuse bypass.
+## Salin Jaringan
 
-The repository stays small by pinning the upstream engine in \`UPSTREAM.lock\` and applying the local overlay during GitHub Actions.
+Build terpisah untuk menyalin trafik jaringan hanya dari aplikasi target yang dipilih pengguna.
+
+- Bahasa antarmuka: Indonesia.
+- Target perangkat: Android 11, arm64-v8a.
+- Penangkapan memakai VPN lokal Android; tidak memakai server VPN jarak jauh.
+- Aplikasi target wajib dipilih sebelum penangkapan dapat dimulai.
+- Salinan dapat disimpan sebagai file PCAP pada penyimpanan perangkat.
+- Trafik HTTPS tetap terenkripsi secara normal kecuali pengguna memakai mekanisme dekripsi yang memang didukung target; overlay ini tidak menambahkan bypass certificate pinning, Play Integrity, anti-cheat, atau sistem anti-abuse.
+- APK uji diverifikasi tanda tangannya oleh GitHub Actions sebelum diunggah sebagai artifact.
+
+Engine penangkapan dipin pada `NETWORK_CAPTURE.lock` dan berasal dari PCAPdroid (GPL-3.0-or-later). Modifikasi lokal diterapkan oleh `scripts/apply_network_capture_overlay.py` saat CI sehingga repository tetap ringan.
