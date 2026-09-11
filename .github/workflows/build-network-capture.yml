@@ -7,6 +7,7 @@ on:
     paths:
       - "NETWORK_CAPTURE.lock"
       - "scripts/apply_network_capture_overlay.py"
+      - "scripts/apply_json_export_overlay.py"
       - ".github/workflows/build-network-capture.yml"
 
 permissions:
@@ -43,7 +44,9 @@ jobs:
           git -C capture submodule update --init --recursive --depth 1
 
       - name: Apply Salin Jaringan overlay
-        run: python3 control/scripts/apply_network_capture_overlay.py capture
+        run: |
+          python3 control/scripts/apply_network_capture_overlay.py capture
+          python3 control/scripts/apply_json_export_overlay.py capture
 
       - name: Build signed test APK
         working-directory: capture
